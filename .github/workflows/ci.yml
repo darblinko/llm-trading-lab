@@ -1,0 +1,77 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - name: ruff
+        run: |
+          uvx ruff check .
+          uvx ruff format --check .
+
+  packages:
+    runs-on: ubuntu-24.04
+    strategy:
+      matrix:
+        python-version: ["3.11", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: install
+        run: pip install -e ".[dev]"
+      - name: pytest
+        run: python -m pytest -q
+      - name: quickstart
+        run: |
+          python scripts/make_sample_data.py
+          python -m swing_backtest.demo
+          python -m leakage_audit --data data/sample/bars_1min.csv --plant-leaks
+          python -m leakage_audit --data data/sample/bars_1min.csv --purge-bars 10 --fail-on-leak
+          python -m walkforward --data data/sample/bars_1min.csv --purge-bars 10
+          python -m prompt_history validate --root examples/prompt_history/records --changelog examples/prompt_history/CHANGELOG.md
+
+  apps-python:
+    runs-on: ubuntu-24.04
+    strategy:
+      matrix:
+        app: [claude-review-app, codex-review-app, sample-session]
+    defaults:
+      run:
+        working-directory: apps/${{ matrix.app }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.12"
+      - name: pytest
+        run: uv run pytest -q
+
+  codex-web:
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: apps/codex-review-app/web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: apps/codex-review-app/.nvmrc
+      - name: build
+        run: |
+          npm ci
+          npm run build
+      - name: playwright
+        run: |
+          npx playwright install --with-deps chromium
+          npm test
