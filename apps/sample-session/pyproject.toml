@@ -1,0 +1,18 @@
+[project]
+name = "sample-session"
+version = "0.1.0"
+description = "Seeded generator for one synthetic trading session in the review apps' log layout"
+readme = "README.md"
+license = "Apache-2.0"
+authors = [{ name = "Mitchell Foutz" }]
+requires-python = ">=3.12"
+dependencies = []
+
+[dependency-groups]
+dev = ["pytest==9.0.2"]
+
+[tool.uv]
+package = false
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

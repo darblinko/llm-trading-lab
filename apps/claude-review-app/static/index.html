@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Session Review</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="styles.css">
+  <!-- TradingView Lightweight Charts v5.2.1 (Apache-2.0), vendored from
+       https://cdn.jsdelivr.net/npm/lightweight-charts@5.2.1/dist/lightweight-charts.standalone.production.js
+       License text: vendor/LICENSE-lightweight-charts.txt -->
+  <script src="vendor/lightweight-charts.standalone.production.js"></script>
+  <script type="module" src="js/app.js"></script>
+</head>
+<body>
+  <header class="toolbar" aria-label="Review controls">
+    <div class="toolbar-group">
+      <label class="field">
+        <span class="field-label">Day</span>
+        <select id="day-select" aria-label="Day"></select>
+      </label>
+      <label class="field field-wide">
+        <span class="field-label">Scenario</span>
+        <select id="scenario-select" aria-label="Scenario"></select>
+      </label>
+    </div>
+    <div class="toolbar-group" role="group" aria-label="Main chart overlays">
+      <button type="button" class="toggle" id="toggle-vwap" aria-pressed="false">VWAP</button>
+      <button type="button" class="toggle" id="toggle-ema" aria-pressed="false">EMA 9/21</button>
+      <button type="button" class="toggle" id="toggle-levels" aria-pressed="false">Key levels</button>
+    </div>
+    <div class="toolbar-group" role="group" aria-label="Sub-chart">
+      <label class="field">
+        <span class="field-label">Sub-chart</span>
+        <select id="sub-select" aria-label="Sub-chart indicator"></select>
+      </label>
+      <button type="button" class="toggle" id="toggle-sub-hidden" aria-pressed="false">Hide sub-chart</button>
+    </div>
+    <div class="toolbar-group toolbar-end">
+      <span class="load-state" id="load-state" role="status" aria-live="polite"></span>
+      <button type="button" class="button" id="reload-button" disabled
+              title="Reload is available for the current trading day only">Reload</button>
+      <button type="button" class="button button-quiet" id="theme-button" aria-label="Switch colour theme">Light</button>
+    </div>
+  </header>
+
+  <div class="banners" id="banners">
+    <div class="banner banner-error" id="error-banner" role="alert" hidden>
+      <span class="banner-text" id="error-text"></span>
+      <button type="button" class="banner-close" id="error-close" aria-label="Dismiss error">Dismiss</button>
+    </div>
+    <div class="banner banner-warn" id="warning-banner" hidden>
+      <ul class="banner-list" id="warning-list"></ul>
+      <button type="button" class="banner-close" id="warning-close" aria-label="Dismiss warnings">Dismiss</button>
+    </div>
+  </div>
+
+  <main class="workspace">
+    <section class="chart-area" aria-label="QQQ 3-minute chart">
+      <div id="chart" class="chart"></div>
+      <div class="readout" id="readout" aria-hidden="true"></div>
+      <div class="sub-legend" id="sub-legend" aria-hidden="true"></div>
+      <div class="fill-tooltip" id="fill-tooltip" role="tooltip" hidden></div>
+      <div class="chart-empty" id="chart-empty" hidden></div>
+    </section>
+
+    <aside class="drawer" id="drawer" data-open="false" aria-label="Scenario reasoning">
+      <button type="button" class="drawer-tab" id="drawer-tab" aria-expanded="false" aria-controls="drawer-panel">
+        <span class="drawer-tab-text">Reasoning</span>
+      </button>
+      <div class="drawer-panel" id="drawer-panel" hidden></div>
+    </aside>
+  </main>
+</body>
+</html>
