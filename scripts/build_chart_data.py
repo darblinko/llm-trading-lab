@@ -59,8 +59,8 @@ def hero_chart(results: Path) -> dict:
         "type": "stats",
         "title": "Negative results recorded as counts and rates",
         "subtitle": "Gate outcomes, a leak fix and the prompt change log",
-        "source": "data/results/{stage_a_gate_results,b17_gate_results,"
-        "leak_fix_before_after,prompt_history_compliance}.csv",
+        "source": "data/results/{stage_a_gate_results, b17_gate_results, "
+        "leak_fix_before_after, prompt_history_compliance}.csv",
         "alt": f"Stage A families passing: {stage_a_pass}. b17 models passing: {b17_pass}. "
         f"5-minute classifier accuracy: {leaked} with the leak, {clean} without it. "
         f"Prompt change records: {complete['of']}.",
