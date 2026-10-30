@@ -18,10 +18,10 @@ CHECKS_PER_FAMILY = 6
 RECORD_CHECKS = (
     ("follows_naming_convention", "folder name follows convention"),
     ("has_all_four_files", "before, after, diff, rationale"),
-    ("diff_matches_snapshots", "diff matches snapshots"),
-    ("names_trigger", "rationale names a trigger"),
-    ("states_expected_change", "states expected change"),
-    ("states_falsifier", "states a falsifier"),
+    ("diff_matches_snapshots", "diff lines match snapshots"),
+    ("names_trigger", 'rationale contains "trigger"'),
+    ("states_expected_change", 'rationale contains "expected"'),
+    ("states_falsifier", 'rationale contains "falsif"'),
     ("linked_from_changelog", "linked from changelog"),
 )
 
