@@ -12,6 +12,7 @@ from claude_review.bars import (
     BarsUnavailable,
     SessionBars,
     _normalize_alpaca_frame,
+    bars_source_id,
     bars_to_payload,
     load_session_bars,
 )
@@ -155,6 +156,30 @@ class TestCache:
         result = load_session_bars(SESSION, tmp_path, fetch, TODAY)
         assert len(fetch.calls) == 1
         assert len(result.day_minute) == 390
+
+
+class TestCacheSource:
+    def test_cache_from_another_source_is_refetched(self, tmp_path: Path) -> None:
+        sample = RecordingFetch(_make_minute_bars(WEEKDAYS))
+        load_session_bars(SESSION, tmp_path, sample, TODAY, source_id="file:a")
+        other = RecordingFetch(_make_minute_bars(WEEKDAYS, seed=99))
+        result = load_session_bars(SESSION, tmp_path, other, TODAY, source_id="file:b")
+        assert len(other.calls) == 1
+        expected_close = _make_minute_bars(WEEKDAYS, seed=99).loc["2026-09-23 15:59", "close"]
+        assert result.day_minute["close"].iloc[-1] == expected_close
+
+    def test_cache_from_the_same_source_is_reused(self, tmp_path: Path) -> None:
+        sample = RecordingFetch(_make_minute_bars(WEEKDAYS))
+        load_session_bars(SESSION, tmp_path, sample, TODAY, source_id="file:a")
+        load_session_bars(SESSION, tmp_path, _failing_fetch, TODAY, source_id="file:a")
+
+    def test_source_id_changes_when_the_bars_file_changes(self, tmp_path: Path) -> None:
+        bars_file = tmp_path / "bars.jsonl"
+        bars_file.write_text('{"t": "2026-09-23T13:30:00Z"}\n')
+        before = bars_source_id(bars_file)
+        bars_file.write_text('{"t": "2026-09-23T13:30:00Z"}\n{"t": "2026-09-23T13:31:00Z"}\n')
+        assert bars_source_id(bars_file) != before
+        assert bars_source_id(tmp_path / "other.jsonl") != before
 
 
 class TestFailures:

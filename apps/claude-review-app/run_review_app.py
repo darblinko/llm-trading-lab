@@ -15,7 +15,7 @@ from zoneinfo import ZoneInfo
 APP_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(APP_DIR))
 
-from claude_review.bars import make_fetch  # noqa: E402
+from claude_review.bars import bars_source_id, make_fetch  # noqa: E402
 from claude_review.day_payload import DaySources, build_day_payload  # noqa: E402
 from claude_review.log_files import list_session_days  # noqa: E402
 from claude_review.payload_types import DayPayload  # noqa: E402
@@ -37,7 +37,13 @@ def build_context(log_dir: Path, bars_file: Path | None) -> AppContext:
     fetch = make_fetch(bars_file)
 
     def build_day(session_date: date, refresh: bool) -> DayPayload:
-        sources = DaySources(log_dir=log_dir, cache_dir=CACHE_DIR, fetch=fetch, today=today_et())
+        sources = DaySources(
+            log_dir=log_dir,
+            cache_dir=CACHE_DIR,
+            fetch=fetch,
+            today=today_et(),
+            bars_source=bars_source_id(bars_file),
+        )
         return build_day_payload(session_date, sources, refresh)
 
     return AppContext(

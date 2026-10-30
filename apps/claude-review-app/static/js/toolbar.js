@@ -61,9 +61,8 @@ export function syncToggle(button, pressed, available, unavailableTitle) {
 }
 
 export function syncReload(button, payload) {
-  const enabled = Boolean(payload && payload.is_today);
-  button.disabled = !enabled;
-  button.title = enabled
+  button.disabled = !payload;
+  button.title = payload && payload.is_today
     ? "Reload today's logs and bars"
-    : "Reload is available for the current trading day only";
+    : "Reload the logs and fetch the bars again, replacing the cached bars";
 }

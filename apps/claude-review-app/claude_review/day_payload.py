@@ -35,6 +35,7 @@ class DaySources:
     cache_dir: Path
     fetch: MinuteFetch
     today: date
+    bars_source: str = ""
 
 
 class MarketSection(NamedTuple):
@@ -85,7 +86,12 @@ def _market_section(
 ) -> MarketSection:
     try:
         session_bars = load_session_bars(
-            session_date, sources.cache_dir, sources.fetch, sources.today, refresh
+            session_date,
+            sources.cache_dir,
+            sources.fetch,
+            sources.today,
+            refresh,
+            sources.bars_source,
         )
     except BarsUnavailable as error:
         logger.warning("No bars for %s: %s", session_date, error)

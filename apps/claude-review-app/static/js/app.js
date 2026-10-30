@@ -76,7 +76,7 @@ function renderWarnings(warnings) {
 
 function setLoading(message) {
   nodes.loadState.textContent = message;
-  nodes.reloadButton.disabled = Boolean(message) || !state.payload?.is_today;
+  nodes.reloadButton.disabled = Boolean(message) || !state.payload;
 }
 
 function refreshMarkers() {

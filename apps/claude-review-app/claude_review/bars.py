@@ -67,6 +67,24 @@ def make_fetch(bars_file: Path | None) -> MinuteFetch:
     return fetch
 
 
+def bars_source_id(bars_file: Path | None) -> str:
+    """Identify the bar source a cache entry came from.
+
+    A local file is identified by its resolved path, size and modification
+    time, so a different or edited file invalidates the cache. Alpaca is
+    identified by whether credentials are set; the values are not used.
+    """
+    parts = []
+    if bars_file is not None and bars_file.exists():
+        stat = bars_file.stat()
+        parts.append(f"file:{bars_file.resolve()}:{stat.st_size}:{stat.st_mtime_ns}")
+    else:
+        parts.append("file:none")
+    alpaca = bool(os.environ.get("ALPACA_API_KEY") and os.environ.get("ALPACA_API_SECRET"))
+    parts.append(f"alpaca:{'on' if alpaca else 'off'}")
+    return "|".join(parts)
+
+
 def read_bars_file(path: Path, start: datetime, end: datetime) -> pd.DataFrame:
     """1-min bars from JSONL rows {"t", "o", "h", "l", "c", "v"} with start <= t < end."""
     rows = [json.loads(line) for line in path.read_text().splitlines() if line.strip()]
@@ -129,17 +147,19 @@ def load_session_bars(
     fetch: MinuteFetch,
     today: date,
     refresh: bool = False,
+    source_id: str = "",
 ) -> SessionBars:
     """Return the session's RTH 1-min bars and the 3-min bars of the kept sessions.
 
-    Completed days (session_date < today) are cached; refresh skips the cache read.
+    Completed days (session_date < today) are cached with source_id; a cache
+    entry written from another source is ignored, and refresh skips the read.
     """
     cache_path = cache_dir / f"{SYMBOL}_1m_{session_date.isoformat()}.json"
-    minute = None if refresh else _read_cache(cache_path, session_date)
+    minute = None if refresh else _read_cache(cache_path, session_date, source_id)
     if minute is None:
         minute = _fetch_session_window(session_date, fetch)
         if session_date < today:
-            _write_cache(cache_path, minute, session_date)
+            _write_cache(cache_path, minute, session_date, source_id)
     day_minute = minute[minute.index.normalize() == pd.Timestamp(session_date)]
     return SessionBars(day_minute=day_minute, bars_3m=resample_to_3m(minute))
 
@@ -170,23 +190,27 @@ def _keep_recent_sessions(minute: pd.DataFrame, session_date: date) -> pd.DataFr
     return rth[(day_index >= first_day) & (day_index <= pd.Timestamp(session_date))]
 
 
-def _read_cache(path: Path, session_date: date) -> pd.DataFrame | None:
+def _read_cache(path: Path, session_date: date, source_id: str) -> pd.DataFrame | None:
     if not path.exists():
         return None
     try:
         document = json.loads(path.read_text())
+        if document.get("source", "") != source_id:
+            logger.info("Bar cache %s is from another source; refetching", path)
+            return None
         index = pd.DatetimeIndex(document["index"])
         if not (index.normalize() == pd.Timestamp(session_date)).any():
             raise ValueError("cache holds no bars for the session day")
         return pd.DataFrame(document["data"], index=index, columns=document["columns"], dtype=float)
-    except (OSError, ValueError, KeyError, TypeError) as exc:
+    except (OSError, ValueError, KeyError, TypeError, AttributeError) as exc:
         logger.warning("Ignoring unreadable bar cache %s for %s: %s", path, session_date, exc)
         return None
 
 
-def _write_cache(path: Path, minute: pd.DataFrame, session_date: date) -> None:
+def _write_cache(path: Path, minute: pd.DataFrame, session_date: date, source_id: str) -> None:
     document = {
         "symbol": SYMBOL,
+        "source": source_id,
         "session_date": session_date.isoformat(),
         "columns": list(minute.columns),
         "index": [stamp.isoformat() for stamp in minute.index],

@@ -44,7 +44,7 @@ export ALPACA_API_KEY=...
 export ALPACA_API_SECRET=...
 ```
 
-The fetch uses the SIP feed with split adjustment. Whether the account can read that feed depends on its market-data plan. Completed days are cached in `.cache/`.
+The fetch uses the SIP feed with split adjustment. Whether the account can read that feed depends on its market-data plan. Completed days are cached in `.cache/`, keyed by the bars file (path, size and modification time) and whether Alpaca credentials are set; a cache entry from another source is fetched again. Reload refetches the bars for any day.
 
 ## Data format
 
