@@ -204,3 +204,25 @@ def test_bar_failure_degrades_to_warning(tmp_path: Path) -> None:
     assert payload["warnings"][0].startswith("Candles unavailable")
     assert len(payload["scenarios"]) == 1 and len(payload["trades"]) == 1
     assert {"PDH", "ORH"} <= {level["label"] for level in payload["key_levels"]}
+
+
+def test_oversold_trade_is_reported_in_payload_warnings(tmp_path: Path) -> None:
+    log_dir = tmp_path / "logs"
+    _write_logs(log_dir)
+    orders_path = log_dir / "orders" / "orders_2026-09-23.jsonl"
+    rows = [json.loads(line) for line in orders_path.read_text().splitlines()]
+    rows[1]["qty_filled"] = 12
+    _write_jsonl(orders_path, rows)
+    sources = DaySources(
+        log_dir=log_dir, cache_dir=tmp_path / "cache", fetch=_fake_fetch, today=TODAY
+    )
+
+    payload = build_day_payload(SESSION, sources)
+
+    [trade] = payload["trades"]
+    assert trade["inventory_incomplete"] is True
+    assert trade["realized_pnl"] is None
+    assert payload["warnings"] == [
+        "1 trade(s) sold more contracts than the log shows bought; "
+        "their profit or loss is not computed."
+    ]

@@ -13,7 +13,15 @@ from claude_review.evaluations import build_evaluations
 from claude_review.indicator_series import build_indicators
 from claude_review.key_levels import build_key_levels
 from claude_review.log_files import JsonRow, read_jsonl, session_paths
-from claude_review.payload_types import Bar, DayPayload, Evaluation, Indicators, KeyLevel, Scenario
+from claude_review.payload_types import (
+    Bar,
+    DayPayload,
+    Evaluation,
+    Indicators,
+    KeyLevel,
+    Scenario,
+    Trade,
+)
 from claude_review.scenarios import build_scenarios, link_trades, resolve_scenario_id
 from claude_review.trace_parser import parse_trace
 from claude_review.trades import build_trades
@@ -50,7 +58,7 @@ def build_day_payload(session_date: date, sources: DaySources, refresh: bool = F
     return {
         "date": day_text,
         "is_today": session_date == sources.today,
-        "warnings": market.warnings + _log_warnings(scenarios, evaluations),
+        "warnings": market.warnings + _log_warnings(scenarios, evaluations, trades),
         "bars": market.bars,
         "indicators": market.indicators,
         "key_levels": market.key_levels,
@@ -106,7 +114,9 @@ def _attach_evaluation_ids(
     ]
 
 
-def _log_warnings(scenarios: list[Scenario], evaluations: list[Evaluation]) -> list[str]:
+def _log_warnings(
+    scenarios: list[Scenario], evaluations: list[Evaluation], trades: list[Trade]
+) -> list[str]:
     warnings = []
     unlogged = sum(1 for scenario in scenarios if scenario["source"] == "unlogged")
     if unlogged:
@@ -120,5 +130,11 @@ def _log_warnings(scenarios: list[Scenario], evaluations: list[Evaluation]) -> l
     if ambiguous:
         warnings.append(
             f"{ambiguous} evaluation(s) matched more than one trace entry; the earliest was used."
+        )
+    incomplete = sum(1 for trade in trades if trade["inventory_incomplete"])
+    if incomplete:
+        warnings.append(
+            f"{incomplete} trade(s) sold more contracts than the log shows bought; "
+            "their profit or loss is not computed."
         )
     return warnings

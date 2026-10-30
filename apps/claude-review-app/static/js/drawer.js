@@ -1,5 +1,5 @@
 import { el } from "./dom.js";
-import { capitalize, clockTime, formatMoney, formatPrice, humanize } from "./format.js";
+import { capitalize, clockTime, formatPrice, humanize, tradePnlText } from "./format.js";
 import { agentCard, legKeys, linkQualityNote, voteStrip } from "./agent_card.js";
 
 export function createDrawer(root, tab, panel) {
@@ -138,7 +138,7 @@ function tradeSummary(trades) {
     el("span", { className: `trade-contract ${trade.direction === "put" ? "is-put" : "is-call"}`, text: trade.contract || "n/a" }),
     el("span", { className: "num", text: trade.entry ? clockTime(trade.entry.time) : "n/a" }),
     el("span", { className: "trade-label", text: trade.scenario_label || "" }),
-    el("span", { className: `num ${trade.realized_pnl >= 0 ? "is-up" : "is-down"}`, text: trade.open ? "open" : formatMoney(trade.realized_pnl) }),
+    el("span", { className: `num ${trade.realized_pnl >= 0 ? "is-up" : "is-down"}`, text: tradePnlText(trade) }),
   ])));
 }
 

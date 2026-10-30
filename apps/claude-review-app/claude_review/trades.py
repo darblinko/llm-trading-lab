@@ -6,6 +6,12 @@ submitted as up to 10 chunk orders; the chunks of an entry are merged into
 one entry Fill, and consecutive sells with the same reason within
 EXIT_GROUP_WINDOW are merged into one exit Fill.
 
+The log reports cumulative quantity and average price per order. Each increase
+becomes its own execution at the time it was reported, so a late fill on an
+earlier order is accounted for when it arrived. A cycle whose sales exceed the
+recorded buys has unknown cost basis: it is flagged inventory_incomplete and
+its realized_pnl is None.
+
 Fill times are the trader's poll-detection times, not broker execution times.
 """
 
@@ -29,7 +35,7 @@ PRICE_DECIMALS = 4
 
 
 class _OrderFill(NamedTuple):
-    """One order's final fill: first detection time, final cumulative qty and avg price."""
+    """One execution increment of an order: detection time, qty and price of that increment."""
 
     at: datetime
     order_id: str
@@ -44,6 +50,7 @@ class _OrderFill(NamedTuple):
 class _Cycle(NamedTuple):
     fills: tuple[_OrderFill, ...]
     open: bool
+    oversold: bool = False
 
 
 class _TickPrices(NamedTuple):
@@ -66,7 +73,7 @@ def build_trades(order_rows: list[JsonRow], tick_rows: list[JsonRow]) -> list[Tr
 
 
 def _order_fills(order_rows: list[JsonRow]) -> list[_OrderFill]:
-    """Return one fill per order, time-ordered; partial_fill qty is cumulative per order."""
+    """Return incremental executions, time-ordered; partial_fill qty is cumulative per order."""
     rows_by_order: dict[str, list[tuple[datetime, JsonRow]]] = defaultdict(list)
     for row in order_rows:
         if row.get("action") not in FILL_ACTIONS:
@@ -77,30 +84,53 @@ def _order_fills(order_rows: list[JsonRow]) -> list[_OrderFill]:
             logger.warning("Skipping fill row without timestamp or order id: %.200s", row)
             continue
         rows_by_order[str(order_id)].append((at, row))
-    fills = [_order_fill(order_id, stamped) for order_id, stamped in rows_by_order.items()]
-    return sorted((fill for fill in fills if fill is not None), key=lambda fill: fill.at)
+    fills = [
+        fill
+        for order_id, stamped in rows_by_order.items()
+        for fill in _order_increments(order_id, stamped)
+    ]
+    return sorted(fills, key=lambda fill: fill.at)
 
 
-def _order_fill(order_id: str, stamped: list[tuple[datetime, JsonRow]]) -> _OrderFill | None:
-    first_at = min(at for at, _ in stamped)
-    _, final = max(stamped, key=lambda item: (json_int(item[1].get("qty_filled")) or 0, item[0]))
-    qty = json_int(final.get("qty_filled")) or 0
-    price = json_float(final.get("avg_fill_price"))
+def _order_increments(order_id: str, stamped: list[tuple[datetime, JsonRow]]) -> list[_OrderFill]:
+    """Turn one order's cumulative fill rows into one fill per quantity increase.
+
+    Each increment's price is the change in cumulative notional over the change
+    in cumulative quantity, and its time is the row that reported it.
+    """
+    final = max(stamped, key=lambda item: (json_int(item[1].get("qty_filled")) or 0, item[0]))[1]
     side, symbol = final.get("side"), final.get("symbol")
-    if qty <= 0 or price is None or side not in SIDES or not symbol:
-        logger.warning(
-            "Skipping order %s with unusable fill: qty=%r price=%r side=%r symbol=%r",
-            order_id,
-            final.get("qty_filled"),
-            final.get("avg_fill_price"),
-            side,
-            symbol,
-        )
-        return None
+    if side not in SIDES or not symbol:
+        logger.warning("Skipping order %s: side=%r symbol=%r", order_id, side, symbol)
+        return []
     metadata = final.get("metadata")
     metadata = metadata if isinstance(metadata, dict) else {}
     reason = str(final.get("reason") or metadata.get("reason") or "")
-    return _OrderFill(first_at, order_id, str(symbol), str(side), qty, price, reason, metadata)
+    increments: list[_OrderFill] = []
+    prev_qty, prev_notional = 0, 0.0
+    for at, row in sorted(stamped, key=lambda item: item[0]):
+        qty = json_int(row.get("qty_filled")) or 0
+        price = json_float(row.get("avg_fill_price"))
+        if qty <= prev_qty:
+            continue
+        if price is None:
+            logger.warning("Skipping order %s fill row without a price at %s", order_id, at)
+            continue
+        notional = qty * price
+        step_qty = qty - prev_qty
+        step_price = (notional - prev_notional) / step_qty
+        increments.append(
+            _OrderFill(at, order_id, str(symbol), str(side), step_qty, step_price, reason, metadata)
+        )
+        prev_qty, prev_notional = qty, notional
+    if not increments:
+        logger.warning(
+            "Skipping order %s with unusable fill: qty=%r price=%r",
+            order_id,
+            final.get("qty_filled"),
+            final.get("avg_fill_price"),
+        )
+    return increments
 
 
 def _position_cycles(fills: list[_OrderFill]) -> list[_Cycle]:
@@ -117,7 +147,7 @@ def _position_cycles(fills: list[_OrderFill]) -> list[_Cycle]:
         if position < 0:
             logger.warning("Sells exceed buys in %s at %s", fill.symbol, fill.at.isoformat())
         if position <= 0:
-            cycles.append(_Cycle(tuple(current), open=False))
+            cycles.append(_Cycle(tuple(current), open=False, oversold=position < 0))
             current, position = [], 0
     if current:
         cycles.append(_Cycle(tuple(current), open=True))
@@ -139,8 +169,9 @@ def _trade(cycle: _Cycle, ticks: _TickPrices) -> Trade:
         qty=entry["qty"],
         entry=entry,
         exits=exits,
-        realized_pnl=_realized_pnl(cycle.fills),
+        realized_pnl=None if cycle.oversold else _realized_pnl(cycle.fills),
         open=cycle.open,
+        inventory_incomplete=cycle.oversold,
     )
 
 

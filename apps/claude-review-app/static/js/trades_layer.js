@@ -1,5 +1,5 @@
 import { el } from "./dom.js";
-import { barTimeOf, clockTime, formatMoney, formatPrice, humanize } from "./format.js";
+import { barTimeOf, clockTime, formatPrice, humanize, tradePnlText } from "./format.js";
 import { snapToBar } from "./chart_view.js";
 
 const TOOLTIP_OFFSET = 14;
@@ -83,8 +83,7 @@ function fillBlock({ trade, fill, kind }) {
   ];
   if (kind === "exit") rows.push(row("Exit reason", humanize(fill.reason)));
   if (kind === "entry" && trade.scenario_label) rows.push(row("Scenario", trade.scenario_label));
-  const pnlText = trade.open ? "open" : formatMoney(trade.realized_pnl);
-  rows.push(row("Trade profit or loss", pnlText, pnlTone(trade.realized_pnl)));
+  rows.push(row("Trade profit or loss", tradePnlText(trade), pnlTone(trade.realized_pnl)));
   return el("div", { className: "tip-block" }, rows);
 }
 

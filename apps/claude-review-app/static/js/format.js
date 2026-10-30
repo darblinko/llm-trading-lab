@@ -22,6 +22,12 @@ export function formatSigned(value, digits = 2) {
   return sign + value.toFixed(digits);
 }
 
+export function tradePnlText(trade) {
+  if (trade.open) return "open";
+  if (trade.inventory_incomplete) return "incomplete";
+  return formatMoney(trade.realized_pnl);
+}
+
 export function formatMoney(value) {
   if (!Number.isFinite(value)) return "n/a";
   const sign = value > 0 ? "+" : value < 0 ? "-" : "";

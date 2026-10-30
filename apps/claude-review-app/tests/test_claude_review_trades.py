@@ -290,3 +290,71 @@ def test_trades_are_sorted_by_entry_time() -> None:
     trades = build_trades(orders, [])
 
     assert [t["contract"] for t in trades] == [CALL, PUT]
+
+
+def _cumulative(clock: str, order_id: str, side: str, cum_qty: int, avg: float) -> JsonRow:
+    metadata = _buy_metadata() if side == "buy" else {}
+    return _order(clock, order_id, side, cum_qty, avg, metadata=metadata)
+
+
+def test_late_fill_on_an_earlier_order_starts_a_new_cycle_at_its_own_time() -> None:
+    orders = [
+        _cumulative("10:00:00", "b1", "buy", 1, 1.00),
+        _sell("10:05:00", "s1", 1, 2.00, "TP"),
+        # Cumulative 2 at average 2.00 means the second contract filled at 3.00.
+        _cumulative("10:10:00", "b1", "buy", 2, 2.00),
+    ]
+
+    trades = build_trades(orders, [])
+
+    assert [(t["entry"]["time"], t["qty"], t["open"]) for t in trades] == [
+        (_chart("10:00:00"), 1, False),
+        (_chart("10:10:00"), 1, True),
+    ]
+    assert trades[0]["realized_pnl"] == pytest.approx(100.0)
+    assert trades[1]["entry"]["option_price"] == pytest.approx(3.00)
+
+
+def test_partial_fill_increments_are_priced_from_cumulative_notional() -> None:
+    orders = [
+        _order("10:00:00", "b1", "buy", 40, 1.00, action="partial_fill", metadata=_buy_metadata()),
+        _order("10:00:30", "b1", "buy", 100, 1.02, action="fill", metadata=_buy_metadata()),
+        _sell("10:01:00", "s1", 40, 1.10, "TP tier 1/3"),
+        _sell("10:30:00", "s2", 60, 1.10, "Close"),
+    ]
+
+    (trade,) = build_trades(orders, [])
+
+    # Increments: 40 at 1.00, then 60 at (102 - 40) / 60.
+    assert trade["realized_pnl"] == pytest.approx((110.0 - 102.0) * 100)
+
+
+def test_duplicate_cumulative_rows_are_counted_once() -> None:
+    orders = [
+        _buy("10:00:00", "b1", 10, 1.00),
+        _buy("10:00:05", "b1", 10, 1.00),
+        _sell("10:30:00", "s1", 10, 1.10, "TP"),
+    ]
+
+    (trade,) = build_trades(orders, [])
+
+    assert trade["qty"] == 10
+    assert trade["open"] is False
+
+
+def test_sale_beyond_recorded_inventory_marks_the_trade_incomplete() -> None:
+    orders = [_buy("10:00:00", "b1", 1, 1.00), _sell("10:05:00", "s1", 2, 2.00, "TP")]
+
+    (trade,) = build_trades(orders, [])
+
+    assert trade["inventory_incomplete"] is True
+    assert trade["realized_pnl"] is None
+    assert trade["open"] is False
+
+
+def test_complete_trade_is_not_marked_incomplete() -> None:
+    orders = [_buy("10:00:00", "b1", 1, 1.00), _sell("10:05:00", "s1", 1, 2.00, "TP")]
+
+    (trade,) = build_trades(orders, [])
+
+    assert trade["inventory_incomplete"] is False

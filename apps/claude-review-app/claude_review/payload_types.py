@@ -116,6 +116,7 @@ class Trade(TypedDict):
     exits: list[Fill]
     realized_pnl: float | None
     open: bool
+    inventory_incomplete: bool
 
 
 class DayPayload(TypedDict):
