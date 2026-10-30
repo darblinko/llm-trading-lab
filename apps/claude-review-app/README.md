@@ -80,7 +80,7 @@ The original private repository refers to this app as Claude's comparison app to
 
 ## Third-party code
 
-`static/vendor/lightweight-charts.standalone.production.js` is TradingView Lightweight Charts v5.2.1, Copyright (c) 2026 TradingView, Inc., licensed under the Apache License 2.0. The license text is in `static/vendor/LICENSE-lightweight-charts.txt`.
+`static/vendor/lightweight-charts.standalone.production.js` is TradingView Lightweight Charts v5.2.1, Copyright (c) 2026 TradingView, Inc., licensed under the Apache License 2.0. The license text is in `static/vendor/LICENSE-lightweight-charts.txt` and the upstream NOTICE file is in `static/vendor/NOTICE-lightweight-charts.txt`. As the upstream README requires, the page footer shows the NOTICE attribution and a link to https://www.tradingview.com/, and the chart's `attributionLogo` option is enabled.
 
 ## License
 

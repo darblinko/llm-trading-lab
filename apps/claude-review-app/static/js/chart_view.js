@@ -13,7 +13,7 @@ function chartOptions(theme) {
       textColor: theme.text,
       fontFamily: FONT_STACK,
       fontSize: 11,
-      attributionLogo: false,
+      attributionLogo: true,
       panes: { separatorColor: theme.line, separatorHoverColor: theme.line, enableResize: false },
     },
     grid: { vertLines: { color: theme.grid }, horzLines: { color: theme.grid } },
