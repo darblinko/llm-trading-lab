@@ -139,7 +139,7 @@ def _trade(cycle: _Cycle, ticks: _TickPrices) -> Trade:
         qty=entry["qty"],
         entry=entry,
         exits=exits,
-        realized_pnl=_realized_pnl(entry_avg, sells),
+        realized_pnl=_realized_pnl(cycle.fills),
         open=cycle.open,
     )
 
@@ -176,10 +176,19 @@ def _weighted_price(fills: list[_OrderFill]) -> float:
     return sum(fill.price * fill.qty for fill in fills) / total_qty
 
 
-def _realized_pnl(entry_avg: float, sells: list[_OrderFill]) -> float | None:
-    if not sells:
+def _realized_pnl(fills: tuple[_OrderFill, ...]) -> float | None:
+    """Realize each sale against the average cost of the contracts held at that time."""
+    if not any(fill.side == "sell" for fill in fills):
         return None
-    pnl = sum((sell.price - entry_avg) * sell.qty * CONTRACT_MULTIPLIER for sell in sells)
+    held_qty, held_cost, pnl = 0, 0.0, 0.0
+    for fill in fills:
+        if fill.side == "buy":
+            held_qty, held_cost = held_qty + fill.qty, held_cost + fill.price * fill.qty
+            continue
+        average_cost = held_cost / held_qty if held_qty > 0 else 0.0
+        pnl += (fill.price - average_cost) * fill.qty * CONTRACT_MULTIPLIER
+        sold = min(fill.qty, held_qty)
+        held_qty, held_cost = held_qty - sold, held_cost - average_cost * sold
     return round(pnl, 2)
 
 

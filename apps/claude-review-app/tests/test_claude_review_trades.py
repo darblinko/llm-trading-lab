@@ -178,6 +178,34 @@ def test_partially_exited_position_stays_open_with_realized_part() -> None:
     assert trade["realized_pnl"] == pytest.approx(200.0)
 
 
+def test_adding_after_a_partial_exit_leaves_earlier_realized_profit_unchanged() -> None:
+    orders = [
+        _buy("10:00:00", "b1", 2, 1.00),
+        _sell("10:05:00", "s1", 1, 2.00, "TP tier 1/3"),
+        _buy("10:10:00", "b2", 1, 3.00),
+    ]
+
+    (trade,) = build_trades(orders, [])
+
+    assert trade["open"] is True
+    assert trade["realized_pnl"] == pytest.approx(100.0)
+
+
+def test_sale_after_an_add_uses_the_average_cost_at_that_time() -> None:
+    orders = [
+        _buy("10:00:00", "b1", 2, 1.00),
+        _sell("10:05:00", "s1", 1, 2.00, "TP tier 1/3"),
+        _buy("10:10:00", "b2", 1, 3.00),
+        _sell("10:20:00", "s2", 2, 2.50, "Close"),
+    ]
+
+    (trade,) = build_trades(orders, [])
+
+    # Cost after the add is (1 x 1.00 + 1 x 3.00) / 2 = 2.00 per contract.
+    assert trade["open"] is False
+    assert trade["realized_pnl"] == pytest.approx(100.0 + 2 * 0.50 * 100)
+
+
 def test_each_exit_decision_is_its_own_fill() -> None:
     orders = [
         _buy("14:23:25", "b1", 300, 0.47),
