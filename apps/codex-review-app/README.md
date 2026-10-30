@@ -6,7 +6,7 @@ Local chart and decision journal for the recorded sessions of one trading agent 
 
 - A day picker over the latest session and up to five earlier ones.
 - 3-minute QQQ candles when they are available, otherwise a labelled line of recorded tick prices. The app never builds OHLC candles from ticks.
-- Indicator observations as logged at tick time: RSI, StochRSI K and D, MACD histogram, RVOL, CVD, VWAP, EMA 9 and EMA 21. Gaps longer than 180 s stay visible.
+- Indicator observations as logged at tick time: RSI, StochRSI K and D, MACD histogram, RVOL, CVD, VWAP, EMA 9 and EMA 21. The chart shows the last observation in each 3-minute interval; an interval with no observation is drawn as a gap, and values are not carried forward into it. Two observations more than 180 s apart in adjacent intervals are drawn as connected points.
 - Scenario revisions with their lifetimes, trigger zones, targets and price invalidations, plus a measured outcome on the candles after the first trigger.
 - The two agents' recorded answers for each entry-timing call ("Claude Opus" and "OpenAI Astra" cards), linked to the scenario event they belong to, with a side-by-side expanded view.
 - Confirmed fills with cumulative partial fills deduplicated, open positions, and realized profit or loss at weighted average cost before fees.
