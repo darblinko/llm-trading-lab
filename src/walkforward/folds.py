@@ -30,6 +30,10 @@ def generate_folds(
     """
     if mode not in ("expanding", "sliding"):
         raise ValueError(f"unknown mode: {mode}")
+    if min_train_sessions < 1 or step_sessions < 1:
+        raise ValueError("min_train_sessions and step_sessions must be at least 1")
+    if purge_bars < 0:
+        raise ValueError("purge_bars must be nonnegative")
     sessions = np.sort(bars["session_id"].unique())
     session_of_row = bars["session_id"].to_numpy()
     folds = []

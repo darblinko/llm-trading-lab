@@ -65,3 +65,12 @@ def test_random_forest_on_noise_scores_near_chance(bars):
     assert len(result.folds) == 3
     assert 0.35 < result.folds["auc_roc"].mean() < 0.65
     assert set(result.trades.columns) >= {"gross_return_pct", "net_return_pct"}
+
+
+@pytest.mark.parametrize(
+    ("min_train", "step", "purge_bars"),
+    [(2, 0, 0), (2, -1, 0), (0, 1, 0), (2, 1, -1)],
+)
+def test_generate_folds_rejects_nonpositive_sizes(bars, min_train, step, purge_bars):
+    with pytest.raises(ValueError):
+        generate_folds(bars, min_train, step, purge_bars=purge_bars)
