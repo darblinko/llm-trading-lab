@@ -67,6 +67,10 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version-file: apps/codex-review-app/.nvmrc
+      # tests/backend.spec.ts starts the real backend with uv.
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.12"
       - name: build
         run: |
           npm ci

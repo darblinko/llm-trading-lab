@@ -12,11 +12,21 @@ export default defineConfig({
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',
   },
-  webServer: {
-    command: 'npm run build && npm exec -- vite preview --host 127.0.0.1 --port 4174 --strictPort',
-    // Wait for Vite to bind; probing an unused port can hang on filtered loopback networks.
-    wait: { stdout: /Local:\s+http:\/\/127\.0\.0\.1:4174\// },
-    reuseExistingServer: false,
-    timeout: 60000,
-  },
+  // Servers start in order, so the backend below serves the dist/ built by the first command.
+  webServer: [
+    {
+      command: 'npm run build && npm exec -- vite preview --host 127.0.0.1 --port 4174 --strictPort',
+      // Wait for Vite to bind; probing an unused port can hang on filtered loopback networks.
+      wait: { stdout: /Local:\s+http:\/\/127\.0\.0\.1:4174\// },
+      reuseExistingServer: false,
+      timeout: 60000,
+    },
+    {
+      // The real backend on the committed synthetic sample session (tests/backend.spec.ts).
+      command: 'uv run --project .. python ../run.py --offline --as-of 2026-01-07 --host 127.0.0.1 --port 4175',
+      wait: { stderr: /Uvicorn running on http:\/\/127\.0\.0\.1:4175/ },
+      reuseExistingServer: false,
+      timeout: 120000,
+    },
+  ],
 });
