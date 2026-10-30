@@ -35,7 +35,8 @@ CONVICTION_STRONG_THRESHOLD = 80
 ML_BULL_THRESHOLD = 0.58
 ML_BEAR_THRESHOLD = 0.42
 
-# Regime transition window: how recent a regime change counts as "just changed".
+# Regime transition window: how many ticks after a regime change still count as
+# "just changed". The transition tick itself always triggers via regime_change_.
 # Only the exact transition tick invokes automatically; subsequent ticks need
 # another signal (new conviction level, ML edge, structural event) to justify
 # the LLM call. Lowered from 2 to 0 after a replay showed that fresh-window triggers
@@ -197,11 +198,12 @@ def should_invoke_agent(
             triggers.append(f"ml_bear_{ml_probability:.2f}")
 
     # ----- Trigger 4: Regime just changed (within window) -----
+    # prev.ticks_since_regime_change is 0 on the tick that changed, so this tick is one later.
     if prev is not None:
         if prev.regime is not None and prev.regime != regime:
             triggers.append(f"regime_change_{prev.regime}_to_{regime}")
-        elif prev.ticks_since_regime_change <= REGIME_CHANGE_WINDOW_TICKS:
-            triggers.append(f"regime_fresh_{prev.ticks_since_regime_change}")
+        elif prev.ticks_since_regime_change + 1 <= REGIME_CHANGE_WINDOW_TICKS:
+            triggers.append(f"regime_fresh_{prev.ticks_since_regime_change + 1}")
 
     # ----- Trigger 5: Structural event fired this tick -----
     # Trendline breakouts were downgraded from strong to weak after an offline

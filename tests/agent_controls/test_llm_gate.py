@@ -1,5 +1,6 @@
 """Tests for the LLM pre-filter gate."""
 
+from agent_controls import llm_gate
 from agent_controls.llm_gate import (
     CONVICTION_WATCH_THRESHOLD,
     ML_BEAR_THRESHOLD,
@@ -247,6 +248,36 @@ def test_regime_fresh_window_does_not_invoke_alone():
         prev=PrevTickContext(regime="bull_trend", ticks_since_regime_change=1),
     )
     assert d.invoke is False
+
+
+def _run_regime_sequence(regimes: list[str]) -> list[bool]:
+    """Feed a regime per tick through should_invoke_agent and build_next_context."""
+    prev, invoked = None, []
+    for regime in regimes:
+        decision = should_invoke_agent(
+            snapshot=_empty_snapshot(),
+            conviction_score_deterministic=30,
+            ml_probability=0.50,
+            regime=regime,
+            positions=[],
+            session_trend_direction="none",
+            thesis_state="intact",
+            prev=prev,
+        )
+        invoked.append(decision.invoke)
+        prev = build_next_context(regime, _empty_snapshot(), "none", "intact", prev)
+    return invoked
+
+
+def test_regime_change_invokes_only_on_the_transition_tick_with_zero_window():
+    invoked = _run_regime_sequence(["neutral", "neutral", "bull_trend", "bull_trend", "bull_trend"])
+    assert invoked == [False, False, True, False, False]
+
+
+def test_regime_fresh_window_counts_ticks_after_the_transition(monkeypatch):
+    monkeypatch.setattr(llm_gate, "REGIME_CHANGE_WINDOW_TICKS", 2)
+    invoked = _run_regime_sequence(["neutral", "neutral", "bull_trend"] + ["bull_trend"] * 3)
+    assert invoked == [False, False, True, True, True, False]
 
 
 # ---------------------------------------------------------------------------
