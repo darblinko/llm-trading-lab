@@ -2,7 +2,7 @@
 
 Writes a daily markdown trace file with the full context sent to and
 received from each LLM node.  Each tick gets a timestamped section
-showing the payload, raw response, and parsed result.
+showing the human message, raw response, and parsed result.
 
 Usage:
     from agent_controls.trace import trace_llm_call
@@ -14,7 +14,22 @@ Usage:
         raw_response=response.content,
         parsed_result=parsed_dict,
         duration_ms=elapsed,
+        model="model-name",
     )
+
+Entry schema, shared with the review apps under apps/ (their trace readers
+are tested against this writer in tests/agent_controls/test_trace.py):
+
+    ### Tick #N | <node> | HH:MM:SS | <n>ms
+    **Model**: `<model>`
+    <details> <summary>Human message (<n> chars)</summary> fenced text </details>
+    **Response**: fenced raw response
+    **Parsed result** (<node>): fenced JSON, or `null` (parse failed)
+
+Deterministic entries use the header without the latency part. The review
+apps select entry-timing calls by node name (`entry_timing:opus`,
+`entry_timing:astra`) and read the setup from a `Label: ...` line in the
+human message; pass `payload` as a string to control that text.
 """
 
 import json
@@ -115,24 +130,26 @@ def new_tick() -> int:
 def trace_llm_call(
     node: str,
     system_prompt_name: str,
-    payload: dict,
+    payload: dict | str,
     raw_response: str,
     parsed_result: dict | None,
     duration_ms: int = 0,
     error: str | None = None,
     usage_metadata: dict | None = None,
+    model: str = "",
 ) -> None:
     """Write a single LLM call trace entry to the daily markdown file.
 
     Args:
         node: Node name (e.g., "analyze_market", "make_decision", "premarket").
         system_prompt_name: Name of the system prompt used (e.g., "ANALYZE_MARKET").
-        payload: The dict/JSON payload sent as the HumanMessage.
+        payload: The HumanMessage content: a dict is written as JSON, a string verbatim.
         raw_response: The raw text response from the LLM.
         parsed_result: The parsed JSON dict (or None if parse failed).
         duration_ms: Time taken for the LLM call in milliseconds.
         error: Error message if parsing failed.
         usage_metadata: Token usage dict from response.usage_metadata.
+        model: Model name written to the **Model** line; empty omits the line.
     """
     # Record tokens in cumulative counter
     usage = get_session_usage()
@@ -146,10 +163,17 @@ def trace_llm_call(
     path = os.path.join(_trace_dir, f"trace_{today}.md")
     now = datetime.now().strftime("%H:%M:%S")
 
-    payload_str = json.dumps(payload, indent=2, default=str)
-    parsed_str = (
-        json.dumps(parsed_result, indent=2, default=str) if parsed_result else "PARSE FAILED"
+    payload_str = (
+        payload if isinstance(payload, str) else json.dumps(payload, indent=2, default=str)
     )
+    parsed_block = (
+        f"**Parsed result** ({node}):\n```json\n"
+        f"{json.dumps(parsed_result, indent=2, default=str)}\n```"
+        if parsed_result
+        else f"**Parsed result** ({node}): `null` (parse failed)"
+    )
+    model_line = f"**Model**: `{model}`\n\n" if model else ""
+    error_line = f"**ERROR**: {error}\n\n" if error else ""
 
     # Token usage line
     token_line = ""
@@ -168,30 +192,24 @@ def trace_llm_call(
 
 ### Tick #{_tick_counter} | {node} | {now} | {duration_ms}ms
 
-**Prompt**: `{system_prompt_name}`
+{model_line}**Prompt**: `{system_prompt_name}`
 {token_line}
-<details>
-<summary>Payload sent ({len(payload_str)} chars)</summary>
+{error_line}<details>
+<summary>Human message ({len(payload_str)} chars)</summary>
 
-```json
+```
 {payload_str}
 ```
-
 </details>
 
-**Raw response**:
+**Response**:
 ```
 {raw_response}
 ```
 
-**Parsed result**:
-```json
-{parsed_str}
-```
+{parsed_block}
 
 """
-    if error:
-        entry += f"**ERROR**: {error}\n\n"
 
     try:
         with open(path, "a") as f:
@@ -227,7 +245,9 @@ def trace_deterministic(
     entry = f"""
 ---
 
-### Tick #{_tick_counter} | {node} | {now} | deterministic
+### Tick #{_tick_counter} | {node} | {now}
+
+No LLM call: deterministic node.
 
 **Inputs**:
 ```json
