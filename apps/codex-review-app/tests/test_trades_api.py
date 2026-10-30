@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from unittest.mock import MagicMock
+
 from conftest import scenario_event, ts
 from fastapi.testclient import TestClient
 from review_app.api import create_app
@@ -92,10 +94,21 @@ def test_session_cache_updates_after_new_tick(store) -> None:
 
 
 def test_offline_sync_does_not_call_alpaca(store, monkeypatch) -> None:
+    # synchronize catches Exception, so a raising stub could fail silently; spy instead.
+    calendar_sync, bar_backfill = MagicMock(), MagicMock()
     monkeypatch.setattr("review_app.store.credentials", lambda _: ("test", "test", "url"))
-    monkeypatch.setattr(
-        "review_app.store.sync_calendar",
-        lambda *_: (_ for _ in ()).throw(AssertionError("Network called")),
-    )
+    monkeypatch.setattr("review_app.store.sync_calendar", calendar_sync)
+    monkeypatch.setattr("review_app.store.backfill_candles", bar_backfill)
     store.synchronize(online=False)
+    calendar_sync.assert_not_called()
+    bar_backfill.assert_not_called()
     assert store.session("2026-09-24", "claude")["prices"]
+
+
+def test_online_sync_spies_detect_alpaca_calls(store, monkeypatch) -> None:
+    calendar_sync, bar_backfill = MagicMock(), MagicMock()
+    monkeypatch.setattr("review_app.store.credentials", lambda _: ("test", "test", "url"))
+    monkeypatch.setattr("review_app.store.sync_calendar", calendar_sync)
+    monkeypatch.setattr("review_app.store.backfill_candles", bar_backfill)
+    store.synchronize(online=True)
+    calendar_sync.assert_called_once()
