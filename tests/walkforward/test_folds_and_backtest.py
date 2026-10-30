@@ -4,7 +4,7 @@ import pytest
 
 from walkforward import models
 from walkforward.backtest import WalkForwardConfig, run_walk_forward, simulate_trades
-from walkforward.features import FEATURE_COLUMNS, build_features
+from walkforward.features import FEATURE_COLUMNS, _rsi, build_features
 from walkforward.folds import generate_folds, purge
 from walkforward.labels import add_binary_label
 from walkforward.metrics import trade_metrics
@@ -74,3 +74,21 @@ def test_random_forest_on_noise_scores_near_chance(bars):
 def test_generate_folds_rejects_nonpositive_sizes(bars, min_train, step, purge_bars):
     with pytest.raises(ValueError):
         generate_folds(bars, min_train, step, purge_bars=purge_bars)
+
+
+def test_rsi_is_100_for_uninterrupted_gains_and_50_for_flat_prices():
+    rising = _rsi(pd.Series(np.arange(1.0, 41.0)), 14)
+    flat = _rsi(pd.Series(np.full(40, 5.0)), 14)
+    assert np.isnan(rising.iloc[0]) and np.isnan(flat.iloc[0])
+    assert (rising.iloc[1:] == 100.0).all()
+    assert (flat.iloc[1:] == 50.0).all()
+
+
+def test_rsi_with_losses_is_unchanged():
+    close = pd.Series([10.0, 11.0, 10.5, 11.5, 11.0, 12.0])
+    delta = close.diff()
+    gain = delta.clip(lower=0).ewm(alpha=1 / 3, adjust=False).mean()
+    loss = (-delta.clip(upper=0)).ewm(alpha=1 / 3, adjust=False).mean()
+    expected = 100 - 100 / (1 + gain / loss)
+    result = _rsi(close, 3)
+    assert np.allclose(result.iloc[2:], expected.iloc[2:])

@@ -25,7 +25,10 @@ def _rsi(close: pd.Series, period: int) -> pd.Series:
     delta = close.diff()
     gain = delta.clip(lower=0).ewm(alpha=1 / period, adjust=False).mean()
     loss = (-delta.clip(upper=0)).ewm(alpha=1 / period, adjust=False).mean()
-    return 100 - 100 / (1 + gain / loss.replace(0, np.nan))
+    rsi = 100 - 100 / (1 + gain / loss.replace(0, np.nan))
+    # Without losses RSI is 100 when prices rose and neutral (50) when they did not move.
+    rsi = rsi.mask((loss == 0) & (gain > 0), 100.0)
+    return rsi.mask((loss == 0) & (gain == 0), 50.0)
 
 
 def build_features(bars: pd.DataFrame) -> pd.DataFrame:
