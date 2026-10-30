@@ -4,10 +4,12 @@ import pytest
 
 from walkforward import models
 from walkforward.backtest import WalkForwardConfig, run_walk_forward, simulate_trades
+from walkforward.data import add_session_columns
 from walkforward.features import FEATURE_COLUMNS, _rsi, build_features
 from walkforward.folds import generate_folds, purge
-from walkforward.labels import add_binary_label
+from walkforward.labels import add_binary_label, add_forward_returns
 from walkforward.metrics import trade_metrics
+from walkforward.synthetic import synthetic_minute_bars
 
 
 def test_folds_are_ordered_disjoint_and_session_aligned(bars):
@@ -92,3 +94,16 @@ def test_rsi_with_losses_is_unchanged():
     expected = 100 - 100 / (1 + gain / loss)
     result = _rsi(close, 3)
     assert np.allclose(result.iloc[2:], expected.iloc[2:])
+
+
+def test_single_class_training_fold_scores_without_error():
+    flat = add_session_columns(synthetic_minute_bars(8, seed=2))
+    flat[["open", "high", "low", "close"]] = 400.0
+    flat = build_features(add_binary_label(add_forward_returns(flat, (10,)), 10, 0.05))
+    config = WalkForwardConfig(min_train_sessions=3, step_sessions=2)
+    result = run_walk_forward(
+        flat, models.random_forest({"n_estimators": 5}), FEATURE_COLUMNS, config
+    )
+    assert len(result.folds) > 0
+    assert (result.predictions["probability"] == 0.0).all()
+    assert "auc_roc" not in result.folds.columns

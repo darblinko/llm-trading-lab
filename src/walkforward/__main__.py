@@ -28,6 +28,13 @@ def parse_args(argv: list[str] | None) -> argparse.Namespace:
     return parser.parse_args(argv)
 
 
+def _mean_auc(folds) -> str:
+    """Mean fold AUC, or n/a when no fold had both classes in its test labels."""
+    if "auc_roc" not in folds.columns or folds["auc_roc"].isna().all():
+        return "n/a"
+    return f"{folds['auc_roc'].mean():.4f}"
+
+
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
     config = WalkForwardConfig(purge_bars=args.purge_bars)
@@ -36,8 +43,9 @@ def main(argv: list[str] | None = None) -> int:
     factory = models.random_forest if args.model == "rf" else models.xgboost
     result = run_walk_forward(bars, factory({"n_estimators": args.trees}), FEATURE_COLUMNS, config)
     print(result.folds.to_string(index=False))
-    print(f"folds {len(result.folds)}; mean AUC {result.folds['auc_roc'].mean():.4f}")
-    print("trades: " + ", ".join(f"{k} {v}" for k, v in result.summary.items()))
+    print(f"folds {len(result.folds)}; mean AUC {_mean_auc(result.folds)}")
+    summary = ", ".join(f"{k} {v}" for k, v in result.summary.items())
+    print(f"trades: {summary or 'none'}")
     if args.out_dir:
         args.out_dir.mkdir(parents=True, exist_ok=True)
         result.folds.to_csv(args.out_dir / "folds.csv", index=False)

@@ -77,7 +77,7 @@ def _score_fold(
     model = model_fn(np.nan_to_num(train[columns].to_numpy()), train[label_column].to_numpy())
     x_test = np.nan_to_num(test[columns].to_numpy())
     y_test = test[label_column].to_numpy()
-    probability = model.predict_proba(x_test)[:, 1]
+    probability = _positive_probability(model, x_test)
     metrics = classification_metrics(y_test, model.predict(x_test), probability)
     row = {"fold_id": fold.fold_id, "train_size": len(train), "test_size": len(test), **metrics}
     frame = pd.DataFrame(
@@ -89,6 +89,14 @@ def _score_fold(
         }
     )
     return row, frame
+
+
+def _positive_probability(model, features: np.ndarray) -> np.ndarray:
+    """Probability of label 1; a model fitted on one class has a single predict_proba column."""
+    classes = list(model.classes_)
+    if 1 not in classes:
+        return np.zeros(len(features))
+    return model.predict_proba(features)[:, classes.index(1)]
 
 
 def simulate_trades(
