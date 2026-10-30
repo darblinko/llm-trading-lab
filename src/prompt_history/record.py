@@ -49,14 +49,20 @@ def folder_name(day: date, prompt_name: str, slug: str) -> str:
     return f"{day.isoformat()}_{prompt_name}_{slug}"
 
 
+NO_NEWLINE_MARKER = "\\ No newline at end of file\n"
+
+
 def unified_diff(before: str, after: str) -> str:
+    """Unified diff of two snapshots, with a marker after a last line that has no newline."""
     lines = difflib.unified_diff(
         before.splitlines(keepends=True),
         after.splitlines(keepends=True),
         fromfile="before.md",
         tofile="after.md",
     )
-    return "".join(lines)
+    return "".join(
+        line if line.endswith("\n") else line + "\n" + NO_NEWLINE_MARKER for line in lines
+    )
 
 
 def record_change(

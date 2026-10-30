@@ -48,6 +48,28 @@ def test_template_record_passes_until_snapshots_drift(tmp_path):
     assert problems == ["diff.patch does not match before.md and after.md"]
 
 
+@pytest.mark.parametrize(
+    ("before", "after"),
+    [
+        ("a", "b"),
+        ("a\n", "b"),
+        ("a", "b\n"),
+        ("a\n", "b\n"),
+        ("x\na", "x\nb"),
+        ("x\ny", "x\ny\nz"),
+    ],
+)
+def test_recorded_patch_validates_for_every_trailing_newline_case(tmp_path, before, after):
+    record_change(tmp_path, DAY, "entry_review", "edit-last-line", before, after)
+    assert validate_history(tmp_path) == []
+    assert apply_patch(before, unified_diff(before, after)) == after
+
+
+def test_unified_diff_marks_a_missing_final_newline():
+    diff = unified_diff("a", "b")
+    assert "-a\n\\ No newline at end of file\n+b\n\\ No newline at end of file\n" in diff
+
+
 def test_apply_patch_ignores_headers_and_hunking():
     one = unified_diff("a\nb\nc\n", "a\nB\nc\n")
     other = "--- x\t2026-01-01\n+++ y\t2026-01-02\n@@ -2 +2 @@\n-b\n+B\n"
