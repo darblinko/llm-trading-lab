@@ -43,6 +43,17 @@ def test_partial_fills_are_incremental_and_exit_uses_weighted_cost() -> None:
     assert round(positions[0]["average_price"], 2) == 1.2
 
 
+def test_accounting_follows_broker_execution_time_over_detection_time() -> None:
+    buy = order("buy", "10:02", 1, 1)
+    buy["filled_at"] = "2026-09-24T10:00:00"
+    sell = order("sell", "10:01", 1, 2, "sell")
+    sell["filled_at"] = "2026-09-24T10:01:00"
+    fills, positions = read_fills([buy, sell], [], [])
+    assert [f["side"] for f in fills] == ["buy", "sell"]
+    assert fills[1]["pnl"] == 100
+    assert not positions
+
+
 def test_exit_without_entry_is_not_assigned_fabricated_pnl() -> None:
     fills, positions = read_fills([order("sell", "10:00", 4, 2, "sell")], [], [])
     assert fills[0]["pnl"] is None

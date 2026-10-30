@@ -1,4 +1,9 @@
-"""Confirmed fills, cumulative-fill deduplication and position cost accounting."""
+"""Confirmed fills, cumulative-fill deduplication and position cost accounting.
+
+Each fill is timed by the broker execution time when the log records one
+(filled_at or executed_at), otherwise by the detection timestamp, and
+positions are accounted in that order.
+"""
 
 from __future__ import annotations
 
@@ -9,9 +14,9 @@ from review_app.scenarios import scenario_at
 def read_fills(
     records: list[Row], scenarios: list[Row], decisions: list[Row]
 ) -> tuple[list[Row], list[Row]]:
+    """Derive incremental fills per order, then account for them in execution-time order."""
+    pending: list[tuple[Row, Row]] = []
     orders: dict[str, Row] = {}
-    positions: dict[str, Row] = {}
-    fills: list[Row] = []
     for event in timed_rows(records):
         order_id = event.get("client_order_id") or event.get("broker_order_id")
         if not order_id:
@@ -21,8 +26,11 @@ def read_fills(
         )
         state["metadata"].update(event.get("metadata") or {})
         fill = incremental_fill(event, state, order_id)
-        if fill is None:
-            continue
+        if fill is not None:
+            pending.append((fill, state))
+    positions: dict[str, Row] = {}
+    fills: list[Row] = []
+    for fill, state in sorted(pending, key=lambda item: item[0]["time"]):
         attach_entry(fill, scenarios, decisions, state)
         account_fill(fill, positions)
         fills.append(fill)
