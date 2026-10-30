@@ -216,6 +216,7 @@ p{line-height:1.6}
 .reasoning-dialog .reasoning-context h3{font-size:18px}
 .app-footer{height:35px;display:flex;align-items:center;justify-content:space-between;font-size:8px;letter-spacing:.4px;color:#6e819f}
 .app-footer .status-light{width:4px;height:4px}
+.app-footer .attribution a{color:inherit}
 .loading-screen{height:65vh;display:flex;align-items:center;justify-content:center;flex-direction:column;color:#8394af;gap:14px}
 .loading-screen h2{font-size:18px;font-weight:400;color:#becbdc}
 .loading-screen p{font-size:12px}

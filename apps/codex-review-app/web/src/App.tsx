@@ -141,6 +141,8 @@ function QualityNotes({ catalog, session }: { catalog: Catalog | null; session: 
 function AppFooter({ session }: { session: Session }) {
   return <footer className="app-footer">
     <span><span className="status-light" />LOCAL RECORDS <span className="muted">· {session.stats.observations} observations</span></span>
+    <span className="attribution">Charts: TradingView Lightweight Charts™, Copyright (c) 2025 TradingView, Inc.{' '}
+      <a href="https://www.tradingview.com/" target="_blank" rel="noopener noreferrer">tradingview.com</a></span>
     <span>Last recorded {timeLabel(session.last_updated)} ET · Refreshes every 60s</span>
   </footer>;
 }

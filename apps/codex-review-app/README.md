@@ -93,7 +93,7 @@ The original private repository's handoff note records that this app was impleme
 
 ## Third-party code
 
-Charts use [TradingView Lightweight Charts](https://www.tradingview.com/lightweight-charts/) (npm `lightweight-charts`), licensed under the Apache License 2.0, with the chart's built-in attribution enabled.
+Charts use [TradingView Lightweight Charts](https://www.tradingview.com/lightweight-charts/) (npm `lightweight-charts`), licensed under the Apache License 2.0. As the upstream README requires, the chart's built-in `attributionLogo` link is enabled and the page footer shows the attribution notice from the upstream NOTICE file ("TradingView Lightweight Charts™, Copyright (c) 2025 TradingView, Inc.") with a link to https://www.tradingview.com/. The npm package does not include the NOTICE file, so the v5.2.1 NOTICE is kept at `web/public/NOTICE-lightweight-charts.txt`, which Vite copies into `web/dist/` next to the bundle.
 
 ## License
 

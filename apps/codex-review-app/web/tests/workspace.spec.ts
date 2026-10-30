@@ -128,3 +128,9 @@ test('failed refresh keeps the session usable and retry recovers', async ({ page
   await page.getByRole('button', { name: 'Retry' }).click();
   await expect(page.getByRole('alert')).toHaveCount(0);
 });
+
+test('the Lightweight Charts attribution notice and link are visible', async ({ page }) => {
+  const footer = page.locator('.app-footer .attribution');
+  await expect(footer).toContainText('TradingView Lightweight Charts™, Copyright (c) 2025 TradingView, Inc.');
+  await expect(footer.getByRole('link', { name: 'tradingview.com' })).toHaveAttribute('href', 'https://www.tradingview.com/');
+});
