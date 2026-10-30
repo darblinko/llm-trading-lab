@@ -167,3 +167,37 @@ def test_malformed_response_fields_become_warnings_and_keep_raw_text(tmp_path: P
     )
     link_decisions(decisions, rows)
     assert decisions[0]["scenario_id"] == rows[0]["id"]
+
+
+def test_null_and_mistyped_scenario_fields_are_normalized_and_reported() -> None:
+    created = scenario_event(
+        "created",
+        "09:30",
+        invalidation_conditions=None,
+        trigger_zone=None,
+        trigger_conditions=["rsi > 30", 5],
+        direction=7,
+    )
+    triggered = scenario_event("triggered", "09:40")
+    triggered["status"] = None
+    [scenario] = reconstruct_scenarios([created, triggered], "2026-09-24", "claude", ts("16:00"))
+
+    assert scenario["invalidation_conditions"] == []
+    assert scenario["price_invalidations"] == []
+    assert scenario["zone"] == {}
+    assert scenario["trigger_conditions"] == ["rsi > 30"]
+    assert scenario["direction"] == ""
+    assert scenario["events"][1]["status"] == "unknown"
+    assert scenario["status"] == "created"
+    [created_warning, triggered_warning] = scenario["warnings"]
+    for field in ("invalidation_conditions", "trigger_zone", "trigger_conditions", "direction"):
+        assert field in created_warning
+    assert "status" in triggered_warning
+    json.dumps(scenario)
+
+
+def test_zone_bounds_that_are_not_numbers_are_dropped() -> None:
+    created = scenario_event("created", "09:30", trigger_zone={"low": "abc", "high": 101})
+    [scenario] = reconstruct_scenarios([created], "2026-09-24", "claude", ts("16:00"))
+    assert scenario["zone"] == {"high": 101.0}
+    assert "trigger_zone" in scenario["warnings"][0]

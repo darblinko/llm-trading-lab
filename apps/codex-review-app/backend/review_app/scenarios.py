@@ -7,6 +7,18 @@ import re
 from review_app.records import Row, identity, number, timed_rows
 
 PRICE_CLAUSE = re.compile(r"^price\s*(<=|>=|<|>)\s*(-?\d+(?:\.\d+)?)$")
+TEXT_FIELDS = {
+    "label": "Unnamed scenario",
+    "status": "unknown",
+    "direction": "",
+    "setup_type": "",
+    "confidence": "",
+    "source_kind": "",
+    "decision": "",
+    "reason": "",
+    "reasoning": "",
+}
+LIST_FIELDS = ("trigger_conditions", "invalidation_conditions")
 
 
 def price_invalidations(conditions: list[str]) -> list[Row]:
@@ -16,6 +28,41 @@ def price_invalidations(conditions: list[str]) -> list[Row]:
         if match:
             levels.append({"operator": match[1], "price": float(match[2]), "condition": condition})
     return levels
+
+
+def normalize_event(event: Row) -> tuple[Row, list[str]]:
+    """Return the event with text, list and zone fields of the expected types.
+
+    A field of the wrong type is replaced by its empty value; its name is returned
+    so the scenario can report the malformed row.
+    """
+    row = dict(event)
+    bad: list[str] = []
+    for field, default in TEXT_FIELDS.items():
+        if field in row and not isinstance(row[field], str):
+            row[field] = default
+            bad.append(field)
+    for field in LIST_FIELDS:
+        if field not in row:
+            continue
+        value = row[field]
+        items = [item for item in value if isinstance(item, str)] if isinstance(value, list) else []
+        if not isinstance(value, list) or len(items) != len(value):
+            bad.append(field)
+        row[field] = items
+    if "trigger_zone" in row:
+        row["trigger_zone"], zone_ok = _zone(row["trigger_zone"])
+        if not zone_ok:
+            bad.append("trigger_zone")
+    return row, bad
+
+
+def _zone(value: object) -> tuple[Row, bool]:
+    if not isinstance(value, dict):
+        return {}, False
+    zone = {key: number(value[key]) for key in ("low", "high") if key in value}
+    clean = {key: price for key, price in zone.items() if price is not None}
+    return clean, len(clean) == len(zone)
 
 
 def new_scenario(event: Row, day: str, instance: str, close: int) -> Row:
@@ -49,7 +96,8 @@ def new_scenario(event: Row, day: str, instance: str, close: int) -> Row:
 def reconstruct_scenarios(events: list[Row], day: str, instance: str, close: int) -> list[Row]:
     scenarios: list[Row] = []
     latest: dict[str, Row] = {}
-    for event in timed_rows(events, "event_timestamp"):
+    for raw_event in timed_rows(events, "event_timestamp"):
+        event, bad_fields = normalize_event(raw_event)
         label = event.get("label", "Unnamed scenario")
         if event.get("status") == "created":
             if label in latest:
@@ -65,6 +113,10 @@ def reconstruct_scenarios(events: list[Row], day: str, instance: str, close: int
             )
             scenarios.append(current)
             latest[label] = current
+        if bad_fields:
+            current["warnings"].append(
+                f"Malformed fields ignored in {event['source']}: {', '.join(bad_fields)}."
+            )
         append_event(current, event)
     return scenarios
 
