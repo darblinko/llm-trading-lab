@@ -3,7 +3,10 @@
 Usage: python scripts/build_chart_data.py [--results data/results] [--out docs/data.json]
 
 Every number in the output is read from a CSV, and each chart names its source file.
-Render the README figures afterwards with the publish kit's svgchart.py.
+Render the README figures afterwards with scripts/svgchart.py:
+
+    python scripts/build_chart_data.py --revision <commit>
+    python scripts/svgchart.py docs/data.json docs/figures --image-prefix docs/figures
 """
 
 from __future__ import annotations
