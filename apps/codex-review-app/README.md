@@ -44,10 +44,13 @@ Tests:
 
 ```bash
 uv run pytest -q
-cd web && npm test
+cd web
+npm ci
+npx playwright install --with-deps chromium
+npm test
 ```
 
-`npm test` builds the frontend, starts a preview server on 4174 and runs the Playwright checks against isolated fixtures. It needs a Chromium build that matches the installed Playwright version.
+`npm ci` does not download a browser; `npx playwright install --with-deps chromium` installs the Chromium build that matches the installed Playwright version, plus its system packages. `npm test` builds the frontend, starts a preview server on 4174 and runs the Playwright checks against isolated fixtures.
 
 ### Alpaca data (optional)
 
@@ -58,7 +61,7 @@ export ALPACA_API_KEY=...
 export ALPACA_API_SECRET=...
 ```
 
-With credentials the backend fetches the exchange calendar from the Alpaca trading API and backfills QQQ 1-minute SIP bars from the Alpaca data API, aggregated to 3-minute candles. Once a calendar covering the review window is cached, the day picker lists only calendar sessions near today, so the 2026-01-07 sample needs `--offline`. With `--as-of 2026-01-07` and credentials the backfill would merge real bars into the sample's candle cache; use `--offline` for the sample.
+With credentials the backend fetches the exchange calendar from the Alpaca trading API and backfills QQQ 1-minute SIP bars from the Alpaca data API, aggregated to 3-minute candles. Once a calendar covering the review window is cached, the day picker lists only calendar sessions near today. `--offline` alone does not change that, because it still reads the cached calendar. To reopen the 2026-01-07 sample after a calendar has been cached, run `uv run python run.py --offline --as-of 2026-01-07`. `--as-of` anchors the window to the sample date, and `--offline` keeps the backfill from merging real bars into the sample's candle cache.
 
 ## Data format
 
