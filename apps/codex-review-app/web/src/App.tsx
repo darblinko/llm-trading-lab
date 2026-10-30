@@ -38,6 +38,10 @@ export default function App() {
     setOverlays(previous => previous.includes(name) ? previous.filter(x => x !== name) : [...previous, name]);
 
   useEffect(() => { if (session && day !== session.date) setDay(session.date); }, [session, day]);
+  // The selector is hidden when one instance exists, so recover from a selection the logs lack.
+  useEffect(() => {
+    if (catalog?.instances.length && !catalog.instances.includes(instance)) chooseInstance(catalog.instances[0]);
+  }, [catalog, instance]);
 
   return <div className="app-shell">
     <AppHeader loading={loading} onRefresh={() => void refresh()} />
