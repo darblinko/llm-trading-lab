@@ -1,5 +1,7 @@
 """Tests for the portfolio risk engine."""
 
+import dataclasses
+
 import pytest
 
 from swing_backtest.config import RiskLimits
@@ -328,3 +330,74 @@ class TestTickerExposure:
         result = engine.check_all(sample_trade, healthy_state, open_positions)
         ticker_checks = [c for c in result.checks if c.name == "ticker_exposure"]
         assert ticker_checks[0].passed is True
+
+
+class TestInputValidity:
+    @staticmethod
+    def _state(**changes) -> PortfolioRiskState:
+        values = dict(
+            total_premium_at_risk=100_000.0,
+            total_portfolio_value=1_000_000.0,
+            daily_pnl=-10_000.0,
+            positions_by_sector={"Technology": 2},
+            net_delta_exposure=50_000.0,
+            premium_by_expiry_week={"2026-W25": 50_000.0},
+        )
+        values.update(changes)
+        return PortfolioRiskState(**values)
+
+    @staticmethod
+    def _failed_names(result) -> set[str]:
+        return {c.name for c in result.checks if not c.passed}
+
+    @pytest.mark.parametrize(
+        "changes",
+        [
+            {"daily_pnl": float("nan")},
+            {"total_premium_at_risk": float("nan")},
+            {"net_delta_exposure": float("inf")},
+            {"total_portfolio_value": 0.0},
+            {"total_portfolio_value": -1.0},
+            {"total_portfolio_value": float("nan")},
+            {"premium_by_expiry_week": {"2026-W25": float("nan")}},
+        ],
+    )
+    def test_rejects_invalid_state(self, engine, sample_trade, open_positions, changes):
+        result = engine.check_all(sample_trade, self._state(**changes), open_positions)
+        assert result.passed is False
+        assert "inputs_valid" in self._failed_names(result)
+
+    @pytest.mark.parametrize(
+        "changes",
+        [
+            {"premium_cost": -5_000.0},
+            {"premium_cost": 0.0},
+            {"premium_cost": float("nan")},
+            {"qty": 0},
+            {"qty": -2},
+            {"delta": float("nan")},
+            {"underlying_price": 0.0},
+        ],
+    )
+    def test_rejects_invalid_trade(self, engine, sample_trade, open_positions, changes):
+        trade = dataclasses.replace(sample_trade, **changes)
+        result = engine.check_all(trade, self._state(), open_positions)
+        assert result.passed is False
+        assert "inputs_valid" in self._failed_names(result)
+
+    @pytest.mark.parametrize(
+        "changes",
+        [{"max_daily_drawdown_pct": float("nan")}, {"max_premium_at_risk_pct": -1.0}],
+    )
+    def test_rejects_invalid_limits(self, sample_trade, open_positions, changes):
+        engine = RiskEngine(RiskLimits(portfolio_value=1_000_000, **changes))
+        result = engine.check_all(sample_trade, self._state(), open_positions)
+        assert result.passed is False
+        assert "inputs_valid" in self._failed_names(result)
+
+    def test_valid_inputs_report_a_passing_input_check(
+        self, engine, sample_trade, healthy_state, open_positions
+    ):
+        result = engine.check_all(sample_trade, healthy_state, open_positions)
+        assert result.checks[0].name == "inputs_valid"
+        assert result.checks[0].passed is True

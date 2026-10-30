@@ -1,7 +1,9 @@
 """Portfolio-level risk engine. ALL checks must pass before order submission."""
 
-from dataclasses import dataclass
+import math
+from dataclasses import dataclass, fields
 from datetime import date
+from numbers import Integral, Real
 
 from swing_backtest.config import RiskLimits
 from swing_backtest.domain import (
@@ -55,7 +57,11 @@ class RiskEngine:
         provisional positions), so an order that has not filled still counts
         toward max_positions, ticker exposure and the state-based limits.
         """
+        input_check = self._check_inputs(proposed, state)
+        if not input_check.passed:
+            return RiskCheckResult(passed=False, checks=(input_check,))
         checks = (
+            input_check,
             self._check_max_positions(open_positions),
             self._check_total_premium(proposed, state),
             self._check_daily_drawdown(state),
@@ -68,6 +74,16 @@ class RiskEngine:
         return RiskCheckResult(
             passed=all(c.passed for c in checks),
             checks=checks,
+        )
+
+    def _check_inputs(self, proposed: ProposedTrade, state: PortfolioRiskState) -> RiskCheck:
+        # NaN compares false against every limit, so missing data would otherwise pass.
+        problems = [*_limit_problems(self.config), *_state_problems(state)]
+        problems += _trade_problems(proposed)
+        return RiskCheck(
+            name="inputs_valid",
+            passed=not problems,
+            detail="; ".join(problems) if problems else "state, limits and trade are valid",
         )
 
     def _check_max_positions(self, open_positions: list[Position]) -> RiskCheck:
@@ -166,3 +182,47 @@ class RiskEngine:
                 else f"already holding {proposed.ticker}"
             ),
         )
+
+
+def _is_finite_number(value: object) -> bool:
+    return isinstance(value, Real) and not isinstance(value, bool) and math.isfinite(value)
+
+
+def _limit_problems(config: RiskLimits) -> list[str]:
+    return [
+        f"limit {field.name} must be a finite nonnegative number"
+        for field in fields(config)
+        if not _is_finite_number(getattr(config, field.name)) or getattr(config, field.name) < 0
+    ]
+
+
+def _state_problems(state: PortfolioRiskState) -> list[str]:
+    problems = [
+        f"state {name} must be finite"
+        for name in ("total_premium_at_risk", "daily_pnl", "net_delta_exposure")
+        if not _is_finite_number(getattr(state, name))
+    ]
+    if not _is_finite_number(state.total_portfolio_value) or state.total_portfolio_value <= 0:
+        problems.append("state total_portfolio_value must be finite and positive")
+    if _is_finite_number(state.total_premium_at_risk) and state.total_premium_at_risk < 0:
+        problems.append("state total_premium_at_risk must be nonnegative")
+    for week, premium in state.premium_by_expiry_week.items():
+        if not _is_finite_number(premium) or premium < 0:
+            problems.append(f"state premium for {week} must be finite and nonnegative")
+    for sector, count in state.positions_by_sector.items():
+        if not isinstance(count, Integral) or isinstance(count, bool) or count < 0:
+            problems.append(f"state position count for {sector} must be a nonnegative integer")
+    return problems
+
+
+def _trade_problems(proposed: ProposedTrade) -> list[str]:
+    problems = []
+    if not _is_finite_number(proposed.premium_cost) or proposed.premium_cost <= 0:
+        problems.append("trade premium_cost must be finite and positive")
+    if not isinstance(proposed.qty, Integral) or isinstance(proposed.qty, bool) or proposed.qty < 1:
+        problems.append("trade qty must be a positive integer")
+    if not _is_finite_number(proposed.delta):
+        problems.append("trade delta must be finite")
+    if not _is_finite_number(proposed.underlying_price) or proposed.underlying_price <= 0:
+        problems.append("trade underlying_price must be finite and positive")
+    return problems
