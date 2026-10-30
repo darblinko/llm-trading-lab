@@ -50,7 +50,7 @@ npx playwright install --with-deps chromium
 npm test
 ```
 
-`npm ci` does not download a browser; `npx playwright install --with-deps chromium` installs the Chromium build that matches the installed Playwright version, plus its system packages. `npm test` builds the frontend, starts a preview server on 4174 and runs the Playwright checks against isolated fixtures. It also starts the backend on 4175 with `uv run python run.py --offline --as-of 2026-01-07` and runs `tests/backend.spec.ts` against the committed sample session without route mocks, so it needs `uv`.
+`npm ci` does not download a browser; `npx playwright install --with-deps chromium` installs the Chromium build that matches the installed Playwright version, plus its system packages. `npm test` builds the frontend, starts a preview server on 4174 and runs the Playwright checks against isolated fixtures. It also starts the backend on 4175 with `uv run python run.py --offline --as-of 2026-01-07` and runs `tests/backend.spec.ts` against the committed sample session without route mocks, so it needs `uv`. It also starts the static review app in `../claude-review-app` on 4176 for `tests/staticApp.spec.ts`.
 
 ### Alpaca data (optional)
 

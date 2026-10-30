@@ -34,6 +34,11 @@ Tests:
 uv run pytest -q
 ```
 
+The pytest suite does not run the browser code in `static/js/`. The browser smoke test is
+`../codex-review-app/web/tests/staticApp.spec.ts`: `npm test` in `../codex-review-app/web` starts
+this app on port 4176 with the committed sample and checks the chart, scenario selection, both
+agent cards, the overlay, sub-chart and reload controls, and that the page logs no errors.
+
 ### Alpaca bars (optional)
 
 When the bars file has no rows for the requested session, the app can fetch 1-minute bars from Alpaca. Install the extra and set the credentials in the environment:

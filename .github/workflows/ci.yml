@@ -67,7 +67,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version-file: apps/codex-review-app/.nvmrc
-      # tests/backend.spec.ts starts the real backend with uv.
+      # tests/backend.spec.ts starts the real backend with uv; tests/staticApp.spec.ts
+      # starts apps/claude-review-app with uv for the static app's browser smoke test.
       - uses: astral-sh/setup-uv@v6
         with:
           python-version: "3.12"

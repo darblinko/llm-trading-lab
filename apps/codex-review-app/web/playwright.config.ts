@@ -28,5 +28,12 @@ export default defineConfig({
       reuseExistingServer: false,
       timeout: 120000,
     },
+    {
+      // The static review app in apps/claude-review-app on the same sample (tests/staticApp.spec.ts).
+      command: 'uv run --project ../../claude-review-app python ../../claude-review-app/run_review_app.py --port 4176',
+      wait: { stderr: /Serving .* on http:\/\/127\.0\.0\.1:4176/ },
+      reuseExistingServer: false,
+      timeout: 120000,
+    },
   ],
 });
