@@ -94,15 +94,13 @@ _PARAMS: dict[SessionType, SessionTypeParams] = {
     SessionType.EVENT_DAY: _EVENT_DAY,
 }
 
-# Regimes considered "trending" for classification purposes
-_TRENDING_REGIMES = frozenset(
-    {
-        "bull_trend",
-        "strong_bull_trend",
-        "bear_trend",
-        "strong_bear_trend",
-    }
-)
+# Regimes considered "trending" for classification purposes, with their direction
+_TRENDING_REGIMES = {
+    "bull_trend": "bull",
+    "strong_bull_trend": "bull",
+    "bear_trend": "bear",
+    "strong_bear_trend": "bear",
+}
 
 
 def classify_session(
@@ -148,26 +146,28 @@ def classify_session(
     if has_high_impact_events:
         return _EVENT_DAY
 
-    is_trending = regime in _TRENDING_REGIMES
+    regime_direction = _TRENDING_REGIMES.get(regime)
     thesis_intact = thesis_state == "intact"
-    thesis_directional = thesis_bias in ("bull", "bear")
+    thesis_with_regime = thesis_bias in ("bull", "bear") and thesis_bias == regime_direction
+    session_with_thesis = session_trend_direction == thesis_bias
     thesis_confident = thesis_confidence in ("high", "medium")
     slope_strong = slope_15m is not None and abs(slope_15m) > 0.2
 
-    # Priority 2: Trend day: thesis + regime + MTF all aligned
+    # Priority 2: Trend day: thesis, regime and session trend point the same way,
+    # with MTF alignment, a confident thesis and a strong slope
     if (
         thesis_intact
-        and thesis_directional
+        and thesis_with_regime
+        and session_with_thesis
         and thesis_confident
-        and is_trending
         and mtf_aligned
         and slope_strong
     ):
         return _TREND_DAY
 
-    # Priority 3: Breakout day: regime trending + thesis intact,
-    # but MTF or slope not fully confirmed yet
-    if thesis_intact and thesis_directional and is_trending:
+    # Priority 3: Breakout day: trending regime in the thesis direction + thesis intact,
+    # but session trend, MTF or slope not fully confirmed yet
+    if thesis_intact and thesis_with_regime:
         return _BREAKOUT_DAY
 
     # Priority 4: Range day: everything else

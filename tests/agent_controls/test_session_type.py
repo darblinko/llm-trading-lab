@@ -159,6 +159,28 @@ class TestClassification:
         result = _classify(thesis_state="invalidated")
         assert result.session_type == SessionType.RANGE_DAY
 
+    def test_bull_thesis_against_bear_regime_and_session_is_not_trend_day(self):
+        """Directional conflict -> no TREND_DAY parameters (finding: 120-minute hold)."""
+        result = _classify(
+            thesis_bias="bull",
+            thesis_confidence="high",
+            regime="strong_bear_trend",
+            session_trend_direction="bear",
+            mtf_aligned=True,
+            slope_15m=0.5,
+        )
+        assert result.session_type == SessionType.RANGE_DAY
+
+    def test_session_trend_against_thesis_and_regime_is_breakout_day(self):
+        """Thesis and regime agree but the session trend opposes them -> BREAKOUT_DAY."""
+        result = _classify(session_trend_direction="bear")
+        assert result.session_type == SessionType.BREAKOUT_DAY
+
+    def test_session_without_trend_is_breakout_day(self):
+        """No session trend yet -> not confirmed for TREND_DAY."""
+        result = _classify(session_trend_direction="none")
+        assert result.session_type == SessionType.BREAKOUT_DAY
+
     def test_range_day_neutral_regime(self):
         """Neutral regime -> RANGE_DAY even with bullish thesis."""
         result = _classify(regime="neutral")
