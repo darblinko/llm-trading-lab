@@ -52,3 +52,53 @@ def test_binary_label_is_nan_where_target_unknown(bars):
     assert out["label_binary"].iloc[-10:].isna().all()
     assert set(out["label_binary"].dropna().unique()) <= {0.0, 1.0}
     assert isinstance(out, pd.DataFrame)
+
+
+def _rows(stamps):
+    return pd.DataFrame(
+        {"timestamp": stamps, "open": 1.0, "high": 1.0, "low": 1.0, "close": 1.0, "volume": 1}
+    )
+
+
+def test_offset_timestamps_across_dst_change_become_eastern_wall_time():
+    from walkforward.data import add_session_columns
+
+    out = add_session_columns(_rows(["2026-03-09T09:30:00-04:00", "2026-03-06T09:30:00-05:00"]))
+
+    assert [str(d) for d in out["date"]] == ["2026-03-06", "2026-03-09"]
+    assert out["minute_of_day"].tolist() == [570, 570]
+    assert out["session_id"].tolist() == [0, 1]
+    assert out["timestamp"].dt.tz is None
+
+
+def test_utc_timestamps_are_converted_to_eastern_sessions():
+    from walkforward.data import add_session_columns
+
+    out = add_session_columns(_rows(["2026-01-07T01:00:00Z", "2026-01-07T14:30:00Z"]))
+
+    assert [str(d) for d in out["date"]] == ["2026-01-06", "2026-01-07"]
+    assert out["minute_of_day"].tolist() == [20 * 60, 9 * 60 + 30]
+
+
+def test_tz_aware_datetime_column_is_converted():
+    from walkforward.data import add_session_columns
+
+    stamps = pd.to_datetime(["2026-07-01T13:30:00Z"], utc=True)
+    out = add_session_columns(_rows(stamps))
+
+    assert out["minute_of_day"].tolist() == [9 * 60 + 30]
+
+
+def test_naive_timestamps_are_read_as_eastern_wall_time():
+    from walkforward.data import add_session_columns
+
+    out = add_session_columns(_rows(["2026-01-07 09:30:00"]))
+
+    assert out["minute_of_day"].tolist() == [570]
+
+
+def test_mixed_naive_and_offset_timestamps_are_rejected():
+    from walkforward.data import add_session_columns
+
+    with pytest.raises(ValueError, match="naive"):
+        add_session_columns(_rows(["2026-01-07 09:30:00", "2026-01-07T09:31:00-05:00"]))

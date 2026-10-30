@@ -111,6 +111,11 @@ entries that peek five bars ahead (mean R 0.749). The planted-leak audit reports
 overlapping rows per fold; the purged run reports none. The walk-forward run trains 3 folds and
 reports a mean AUC of 0.5070 on the random walk. These figures are the command output at seed 0.
 
+`--data` takes a CSV or Parquet file with the columns timestamp, open, high, low, close and
+volume. Timestamps with a UTC offset are converted through UTC to America/New_York before
+sessions are derived; naive timestamps are read as Eastern wall time; a mix of the two is
+rejected.
+
 Optional xgboost model: `pip install -e ".[xgboost]"`, then `--model xgboost`.
 
 Configuration is read from environment variables only; `.env.example` lists them. The risk
