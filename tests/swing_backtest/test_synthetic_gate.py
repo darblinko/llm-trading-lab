@@ -45,6 +45,35 @@ def test_simulate_long_stop_wins_when_both_levels_touched():
     assert result.r_multiple <= -1.0
 
 
+def test_simulate_long_open_gap_through_target_exits_at_the_open():
+    # Entry 100, stop 97, target 106. The next bar opens at 110, then falls to 96.
+    bars = Bars(
+        "TEST",
+        business_days(date(2020, 1, 6), 2),
+        np.array([100.0, 110.0]),
+        np.array([100.0, 111.0]),
+        np.array([100.0, 96.0]),
+        np.array([100.0, 96.5]),
+    )
+    result = simulate_long(bars, 0, BracketRules(max_hold_bars=1), "f", "c1")
+    assert result.exit_reason is ExitReason.TARGET
+    assert result.exit_price == 110.0
+
+
+def test_simulate_long_open_gap_through_stop_exits_at_the_open():
+    bars = Bars(
+        "TEST",
+        business_days(date(2020, 1, 6), 2),
+        np.array([100.0, 95.0]),
+        np.array([100.0, 107.0]),
+        np.array([100.0, 94.0]),
+        np.array([100.0, 106.5]),
+    )
+    result = simulate_long(bars, 0, BracketRules(max_hold_bars=1), "f", "c1")
+    assert result.exit_reason is ExitReason.STOP
+    assert result.exit_price == 95.0
+
+
 def test_simulate_long_time_exit_and_short_history():
     bars = _flat_bars([100, 100.5, 101], [100, 101, 101], [100, 99.5, 100])
     result = simulate_long(bars, 0, BracketRules(max_hold_bars=2), "f", "c1")

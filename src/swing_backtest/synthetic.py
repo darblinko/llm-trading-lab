@@ -70,7 +70,8 @@ def simulate_long(
 ) -> TradeResult | None:
     """Enter at the close of entry_index; exit at stop, target or the last held close.
 
-    A bar that touches both levels counts as a stop. A gap through a level fills at the open.
+    A gap through a level at the open fills at the open. A bar that opens between the levels
+    and touches both counts as a stop.
     Returns None when fewer than max_hold_bars bars follow the entry.
     """
     last = entry_index + rules.max_hold_bars
@@ -81,11 +82,18 @@ def simulate_long(
     target = entry + (entry - stop) * rules.reward_multiple
     exit_index, exit_price, reason = last, float(bars.close[last]), ExitReason.TIME
     for i in range(entry_index + 1, last + 1):
+        bar_open = float(bars.open[i])
+        if bar_open <= stop:
+            exit_index, exit_price, reason = i, bar_open, ExitReason.STOP
+            break
+        if bar_open >= target:
+            exit_index, exit_price, reason = i, bar_open, ExitReason.TARGET
+            break
         if bars.low[i] <= stop:
-            exit_index, exit_price, reason = i, min(stop, float(bars.open[i])), ExitReason.STOP
+            exit_index, exit_price, reason = i, stop, ExitReason.STOP
             break
         if bars.high[i] >= target:
-            exit_index, exit_price, reason = i, max(target, float(bars.open[i])), ExitReason.TARGET
+            exit_index, exit_price, reason = i, target, ExitReason.TARGET
             break
     return TradeResult(
         candidate_id=candidate_id,
