@@ -7,6 +7,7 @@ Module-level state resets daily via ensure_session().
 """
 
 import logging
+import math
 from datetime import datetime
 
 logger = logging.getLogger(__name__)
@@ -30,8 +31,14 @@ _current_date: str | None = None
 
 
 def init(starting_equity: float) -> None:
-    """Initialize with the account's starting equity for the day."""
+    """Initialize with the account's starting equity for the day.
+
+    Raises:
+        ValueError: if starting_equity is not a finite number above zero.
+    """
     global _starting_equity
+    if not math.isfinite(starting_equity) or starting_equity <= 0:
+        raise ValueError(f"starting equity must be finite and above zero, got {starting_equity!r}")
     _starting_equity = starting_equity
     logger.info("Risk tracker initialized: starting equity = %.2f", starting_equity)
 
@@ -62,9 +69,18 @@ def update_after_trade(pnl: float) -> None:
 
     Args:
         pnl: Realized profit or loss in account currency (positive = win, negative = loss).
+
+    Raises:
+        RuntimeError: if init() has not set a starting equity.
+        ValueError: if pnl is not finite. State is left unchanged.
     """
     global _realized_pnl, _consecutive_losses, _total_losses, _total_wins
     global _halted, _halt_reason
+
+    if _starting_equity <= 0:
+        raise RuntimeError("call init() with the starting equity before recording trades")
+    if not math.isfinite(pnl):
+        raise ValueError(f"pnl must be finite, got {pnl!r}")
 
     _realized_pnl += pnl
 
@@ -86,11 +102,7 @@ def update_after_trade(pnl: float) -> None:
         )
 
     # Check halt conditions
-    if (
-        _starting_equity > 0
-        and abs(_realized_pnl) / _starting_equity >= MAX_DAILY_LOSS_PCT
-        and _realized_pnl < 0
-    ):
+    if _realized_pnl < 0 and -_realized_pnl / _starting_equity >= MAX_DAILY_LOSS_PCT:
         _halted = True
         _halt_reason = (
             f"Daily loss {_realized_pnl:.2f} exceeds {MAX_DAILY_LOSS_PCT:.0%} of starting equity"
