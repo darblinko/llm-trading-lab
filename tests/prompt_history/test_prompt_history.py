@@ -8,7 +8,7 @@ from prompt_history.__main__ import main
 from prompt_history.changelog import entry_problems, field_coverage, parse_entries
 from prompt_history.index import NONCONFORMING, compliance, counts_by, write_index
 from prompt_history.record import folder_name, record_change, unified_diff
-from prompt_history.validate import changed_lines, validate_history
+from prompt_history.validate import apply_patch, validate_history
 
 EXAMPLES = Path(__file__).resolve().parents[2] / "examples" / "prompt_history"
 DAY = date(2026, 1, 5)
@@ -48,10 +48,35 @@ def test_template_record_passes_until_snapshots_drift(tmp_path):
     assert problems == ["diff.patch does not match before.md and after.md"]
 
 
-def test_changed_lines_ignore_headers_and_hunking():
+def test_apply_patch_ignores_headers_and_hunking():
     one = unified_diff("a\nb\nc\n", "a\nB\nc\n")
     other = "--- x\t2026-01-01\n+++ y\t2026-01-02\n@@ -2 +2 @@\n-b\n+B\n"
-    assert changed_lines(one) == changed_lines(other)
+    assert apply_patch("a\nb\nc\n", one) == "a\nB\nc\n"
+    assert apply_patch("a\nb\nc\n", other) == "a\nB\nc\n"
+
+
+def test_patch_that_changes_the_wrong_line_is_rejected(tmp_path):
+    folder = record_change(
+        tmp_path, DAY, "entry_review", "capitalize-first-line", "a\nx\na\n", "A\nx\na\n"
+    )
+    (folder / "diff.patch").write_text(
+        "--- before.md\n+++ after.md\n@@ -1,3 +1,3 @@\n a\n x\n-a\n+A\n"
+    )
+    assert apply_patch("a\nx\na\n", (folder / "diff.patch").read_text()) == "a\nx\nA\n"
+    problems = [i.problem for i in validate_history(tmp_path)]
+    assert problems == ["diff.patch does not match before.md and after.md"]
+
+
+def test_apply_patch_rejects_context_that_does_not_match():
+    patch = "@@ -1,2 +1,2 @@\n q\n-b\n+B\n"
+    assert apply_patch("a\nb\n", patch) is None
+
+
+def test_apply_patch_handles_insertion_at_start_and_missing_final_newline():
+    assert apply_patch("a\n", "@@ -0,0 +1 @@\n+z\n") == "z\na\n"
+    marker = "\\ No newline at end of file\n"
+    patch = f"@@ -1,2 +1,2 @@\n a\n-b\n{marker}+c\n{marker}"
+    assert apply_patch("a\nb", patch) == "a\nc"
 
 
 def test_validate_reports_each_convention_break(tmp_path):
