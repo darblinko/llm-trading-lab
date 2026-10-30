@@ -1,6 +1,7 @@
 """Tests for claude_review.evaluations, using synthetic scenario rows and trace entries."""
 
 import json
+from dataclasses import replace
 from typing import Any
 
 from claude_review.chart_time import to_chart_time
@@ -125,6 +126,44 @@ def test_same_tick_rows_link_by_label() -> None:
     assert by_label["Call A"]["legs"]["opus"]["decision"] == "wait"
     assert by_label["Put B"]["legs"]["opus"]["decision"] == "pass"
     assert {e["link_quality"] for e in evaluations} == {"exact"}
+
+
+def test_legs_finishing_at_different_seconds_form_one_pair() -> None:
+    entries = [
+        leg_entry("opus", "10:00:01", "Fade", "wait"),
+        leg_entry("astra", "10:00:02", "Fade", "wait", parsed={"decision": "wait"}),
+    ]
+
+    [evaluation] = build_evaluations([row("09:59:50", "Fade")], entries, SESSION, no_scenario)
+
+    assert evaluation["link_quality"] == "exact"
+    assert evaluation["legs"]["opus"] is not None
+    assert evaluation["legs"]["astra"] is not None
+
+
+def test_legs_from_different_ticks_are_not_paired() -> None:
+    opus = leg_entry("opus", "10:00:01", "Fade", "wait")
+    astra = replace(leg_entry("astra", "10:00:02", "Fade", "pass"), tick=46)
+
+    evaluations = build_evaluations([], [opus, astra], SESSION, no_scenario)
+
+    assert [e["link_quality"] for e in evaluations] == ["trace_only", "trace_only"]
+
+
+def test_interleaved_legs_of_two_labels_pair_by_message() -> None:
+    entries = [
+        leg_entry("opus", "12:00:30", "Call A", "wait"),
+        leg_entry("opus", "12:00:31", "Put B", "pass"),
+        leg_entry("astra", "12:00:40", "Call A", "wait"),
+        leg_entry("astra", "12:00:41", "Put B", "pass"),
+    ]
+    rows = [row("12:00:00", "Call A"), row("12:00:00", "Put B")]
+
+    evaluations = build_evaluations(rows, entries, SESSION, no_scenario)
+
+    assert len(evaluations) == 2
+    assert {e["link_quality"] for e in evaluations} == {"exact"}
+    assert all(e["legs"]["astra"] is not None for e in evaluations)
 
 
 def test_pair_outside_window_is_not_linked() -> None:

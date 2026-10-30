@@ -3,8 +3,9 @@
 The scenarios log is the authoritative list of consensus decisions. A row's
 event_timestamp is the tick start; both legs' trace entries are stamped when the
 legs return, seconds later, and up to about 250 s later when a leg times
-out. Trace tick numbers reset on restart, so the join
-uses the scenario label and time only. A call finishes inside its own tick, so a
+out. Legs of one call are grouped by tick number, human message and a
+LINK_WINDOW_SEC window. Trace tick numbers reset on restart, so the join to
+rows uses the scenario label and time only. A call finishes inside its own tick, so a
 trace pair never belongs to a row when a later row for the same label precedes it.
 """
 
@@ -132,16 +133,24 @@ def _text(row: dict[str, Any], key: str) -> str:
 
 
 def _trace_pairs(entries: Iterable[TraceEntry], session_date: str) -> list[TracePair]:
-    """Group consecutive per-leg entry_timing entries that share a stamp and a human message."""
+    """Group per-leg entry_timing entries of one call.
+
+    Legs of one call share the tick number and the human message, and each is
+    stamped when it returns, so their stamps can differ by up to LINK_WINDOW_SEC.
+    """
     groups: list[dict[str, TraceEntry]] = []
     for entry in entries:
         leg = _leg_name(entry.kind)
         if leg is None:
             continue
-        if groups and _joins_group(groups[-1], leg, entry):
-            groups[-1] = {**groups[-1], leg: entry}
-        else:
+        index = next(
+            (i for i in reversed(range(len(groups))) if _joins_group(groups[i], leg, entry)),
+            None,
+        )
+        if index is None:
             groups.append({leg: entry})
+        else:
+            groups[index] = {**groups[index], leg: entry}
     return [_to_pair(group, session_date) for group in groups]
 
 
@@ -159,9 +168,17 @@ def _joins_group(group: dict[str, TraceEntry], leg: str, entry: TraceEntry) -> b
     first = next(iter(group.values()))
     return (
         leg not in group
-        and entry.time_text == first.time_text
+        and entry.tick == first.tick
         and entry.human_message == first.human_message
+        and 0
+        <= _clock_seconds(entry.time_text) - _clock_seconds(first.time_text)
+        <= LINK_WINDOW_SEC
     )
+
+
+def _clock_seconds(time_text: str) -> int:
+    hours, minutes, seconds = (int(part) for part in time_text.split(":"))
+    return hours * 3600 + minutes * 60 + seconds
 
 
 def _to_pair(group: dict[str, TraceEntry], session_date: str) -> TracePair:
