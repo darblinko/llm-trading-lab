@@ -26,7 +26,9 @@ are tested against this writer in tests/agent_controls/test_trace.py):
     **Response**: fenced raw response
     **Parsed result** (<node>): fenced JSON, or `null` (parse failed)
 
-Deterministic entries use the header without the latency part. The review
+Dates in file names and HH:MM:SS in headers are America/New_York time,
+whatever the host time zone. Deterministic entries use the header without
+the latency part. The review
 apps select entry-timing calls by node name (`entry_timing:opus`,
 `entry_timing:astra`) and read the setup from a `Label: ...` line in the
 human message; pass `payload` as a string to control that text.
@@ -37,8 +39,12 @@ import logging
 import os
 from dataclasses import dataclass
 from datetime import datetime
+from zoneinfo import ZoneInfo
 
 logger = logging.getLogger(__name__)
+
+# The review apps read trace dates and HH:MM:SS headers as US Eastern market time.
+MARKET_TZ = ZoneInfo("America/New_York")
 
 _trace_dir: str | None = None
 _current_date: str | None = None
@@ -99,10 +105,15 @@ _session_usage = TokenUsage()
 _usage_date: str | None = None
 
 
+def _market_now() -> datetime:
+    """Current time in America/New_York, independent of the host time zone."""
+    return datetime.now(MARKET_TZ)
+
+
 def get_session_usage() -> TokenUsage:
     """Return the current session's cumulative token usage."""
     global _session_usage, _usage_date
-    today = datetime.now().strftime("%Y-%m-%d")
+    today = _market_now().strftime("%Y-%m-%d")
     if _usage_date != today:
         _session_usage = TokenUsage()
         _usage_date = today
@@ -119,7 +130,7 @@ def init(trace_dir: str) -> None:
 def new_tick() -> int:
     """Increment and return the tick counter. Call once at the start of each tick."""
     global _tick_counter, _current_date
-    today = datetime.now().strftime("%Y-%m-%d")
+    today = _market_now().strftime("%Y-%m-%d")
     if _current_date != today:
         _current_date = today
         _tick_counter = 0
@@ -159,9 +170,10 @@ def trace_llm_call(
     if _trace_dir is None:
         return
 
-    today = datetime.now().strftime("%Y-%m-%d")
+    stamp = _market_now()
+    today = stamp.strftime("%Y-%m-%d")
     path = os.path.join(_trace_dir, f"trace_{today}.md")
-    now = datetime.now().strftime("%H:%M:%S")
+    now = stamp.strftime("%H:%M:%S")
 
     payload_str = (
         payload if isinstance(payload, str) else json.dumps(payload, indent=2, default=str)
@@ -235,9 +247,10 @@ def trace_deterministic(
     if _trace_dir is None:
         return
 
-    today = datetime.now().strftime("%Y-%m-%d")
+    stamp = _market_now()
+    today = stamp.strftime("%Y-%m-%d")
     path = os.path.join(_trace_dir, f"trace_{today}.md")
-    now = datetime.now().strftime("%H:%M:%S")
+    now = stamp.strftime("%H:%M:%S")
 
     inputs_str = json.dumps(inputs, indent=2, default=str)
     result_str = json.dumps(result, indent=2, default=str)

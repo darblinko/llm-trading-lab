@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
@@ -95,9 +95,19 @@ def _write_entry_timing_trace(tmp_path, monkeypatch) -> Path:
 
 
 class _FixedClock(datetime):
+    """15:49:21 UTC on 2026-01-07, as seen by a host whose local zone is UTC."""
+
     @classmethod
     def now(cls, tz=None):
-        return cls(2026, 1, 7, 10, 49, 21)
+        instant = cls(2026, 1, 7, 15, 49, 21, tzinfo=UTC)
+        return instant.astimezone(tz) if tz is not None else instant.replace(tzinfo=None)
+
+
+def test_trace_times_are_eastern_on_a_utc_host(tmp_path, monkeypatch):
+    path = _write_entry_timing_trace(tmp_path, monkeypatch)
+    text = path.read_text(encoding="utf-8")
+    assert "| entry_timing:opus | 10:49:21 | 1500ms" in text
+    assert "| execute_trade | 10:49:21" in text
 
 
 def test_claude_review_parser_reads_writer_output(tmp_path, monkeypatch):
