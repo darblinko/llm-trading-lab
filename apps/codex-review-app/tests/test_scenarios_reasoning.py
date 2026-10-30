@@ -143,3 +143,27 @@ def test_consensus_without_agent_trace_is_still_reviewable() -> None:
     assert decisions[0]["agents"] == {}
     assert decisions[0]["consensus"] == "pass"
     assert decisions[0]["recorded_reasoning"] == "Pre-check pass"
+
+
+def test_malformed_response_fields_become_warnings_and_keep_raw_text(tmp_path: Path) -> None:
+    path = tmp_path / "trace.md"
+    malformed = trace_block("opus", "09:36", "placeholder").replace(
+        '"reasoning": "placeholder"', '"reasoning": ["explanation"], "key_factors": "volume"'
+    )
+    path.write_text(malformed + trace_block("astra", "09:36", "Wait volume"))
+    warnings: list[str] = []
+    decisions = read_decisions(path, tmp_path, "2026-09-24", warnings)
+    opus = decisions[0]["agents"]["opus"]
+    assert opus["reasoning"] == "Response could not be parsed; see original response."
+    assert opus["key_factors"] == []
+    assert '["explanation"]' in opus["raw"]
+    assert any("opus" in w and "reasoning" in w for w in warnings)
+    assert any("key_factors" in w for w in warnings)
+    rows = scenarios(
+        [
+            scenario_event("created", "09:29"),
+            scenario_event("entry_timing", "09:35", decision="wait", reasoning="Wait volume"),
+        ]
+    )
+    link_decisions(decisions, rows)
+    assert decisions[0]["scenario_id"] == rows[0]["id"]

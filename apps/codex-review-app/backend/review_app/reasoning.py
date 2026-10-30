@@ -25,16 +25,20 @@ def response_object(raw: str) -> Row:
         return {}
 
 
-def agent_card(name: str, raw: str, model: str, record_source: str, when: int) -> Row:
-    parsed = response_object(raw)
-    decision = parsed.get("decision", "unavailable")
+UNPARSED_REASONING = "Response could not be parsed; see original response."
+TEXT_FIELDS = ("decision", "reasoning", "case_for", "case_against", "verdict", "wait_for")
+
+
+def agent_card(
+    name: str, raw: str, model: str, record_source: str, when: int, warnings: list[str]
+) -> Row:
+    """One agent's answer; fields of the wrong JSON type are dropped with a warning."""
+    parsed = valid_fields(response_object(raw), name, record_source, warnings)
     return {
         "name": name,
         "model": model,
-        "decision": decision,
-        "reasoning": parsed.get(
-            "reasoning", "Response could not be parsed; see original response."
-        ),
+        "decision": parsed.get("decision", "unavailable"),
+        "reasoning": parsed.get("reasoning", UNPARSED_REASONING),
         "case_for": parsed.get("case_for", parsed.get("bull_case", "")),
         "case_against": parsed.get("case_against", parsed.get("bear_case", "")),
         "verdict": parsed.get("verdict", ""),
@@ -44,6 +48,26 @@ def agent_card(name: str, raw: str, model: str, record_source: str, when: int) -
         "source": record_source,
         "time": when,
     }
+
+
+def valid_fields(parsed: Row, name: str, record_source: str, warnings: list[str]) -> Row:
+    """Keep text fields that are strings and key_factors that is a list of strings."""
+    valid: Row = {}
+    for key, value in parsed.items():
+        if key in (*TEXT_FIELDS, "bull_case", "bear_case"):
+            ok = isinstance(value, str) or (key == "wait_for" and value is None)
+        elif key == "key_factors":
+            ok = isinstance(value, list) and all(isinstance(item, str) for item in value)
+        else:
+            continue
+        if ok:
+            valid[key] = value
+        else:
+            warnings.append(
+                f"{record_source}: {name} response field '{key}' is "
+                f"{type(value).__name__}, not text; shown in the original response only."
+            )
+    return valid
 
 
 def read_decisions(path: Path, root: Path, day: str, warnings: list[str]) -> list[Row]:
@@ -57,7 +81,7 @@ def read_decisions(path: Path, root: Path, day: str, warnings: list[str]) -> lis
         block = text[
             header.end() : headers[index + 1].start() if index + 1 < len(headers) else len(text)
         ]
-        add_trace(groups, path, root, day, text, header, block)
+        add_trace(groups, path, root, day, text, header, block, warnings)
     return groups
 
 
@@ -69,6 +93,7 @@ def add_trace(
     text: str,
     header: re.Match[str],
     block: str,
+    warnings: list[str],
 ) -> None:
     human_match, response_match = HUMAN.search(block), RESPONSE.search(block)
     human = human_match[1] if human_match else ""
@@ -100,9 +125,8 @@ def add_trace(
         groups.append(previous)
     model_match = re.search(r"\*\*Model\*\*:\s*`([^`]+)`", block)
     raw = response_match[1] if response_match else "Response missing or incomplete."
-    previous["agents"][name] = agent_card(
-        name, raw, model_match[1] if model_match else "Unknown", record_source, when
-    )
+    model = model_match[1] if model_match else "Unknown"
+    previous["agents"][name] = agent_card(name, raw, model, record_source, when, warnings)
 
 
 def link_decisions(decisions: list[Row], scenarios: list[Row]) -> None:
