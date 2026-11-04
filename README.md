@@ -145,12 +145,18 @@ tests/                   One directory per package
 - No result tables are committed. The code runs on synthetic data in this repository; run it
   against your own data source to produce results.
 - `src/walkforward` computes features from OHLCV, not from precomputed indicator columns.
+- No result tables are committed. The code runs on synthetic data in this repository; run it
+  against your own data source to produce results.
+- `src/walkforward` computes features from OHLCV, not from precomputed indicator columns.
 - The Stage A gate does not detect look-ahead; the synthetic demo shows a peeking family
   passing it. The correlation screen does not catch the same-day merge leak; the truncation
   test does.
 - The live prompts, the LLM pipeline and the order execution code are not included.
   `prompt_history` publishes the record structure and the validator, not prompt text; the
   example record is fictional.
+- `llm_gate` changes over time (`REGIME_CHANGE_WINDOW_TICKS` in
+  `src/agent_controls/llm_gate.py`); a replay result applies to the gate revision it ran on.
+
 - `llm_gate` changes over time (`REGIME_CHANGE_WINDOW_TICKS` in
   `src/agent_controls/llm_gate.py`); a replay result applies to the gate revision it ran on.
 

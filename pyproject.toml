@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "llm-trading-lab"
 version = "0.1.0"
-description = "Measurement, constraint and logging tooling for LLM trading agents, with the negative results it produced."
+description = "Measurement, constraint and logging tooling for LLM trading agents."
 readme = "README.md"
 license = "Apache-2.0"
 authors = [{ name = "Mitchell Foutz" }]
